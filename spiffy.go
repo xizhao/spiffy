@@ -1,4 +1,4 @@
-package orm
+package spiffy
 
 import (
 	"database/sql"
@@ -8,28 +8,38 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	_ "github.com/lib/pq"
 )
 
-var default_alias string
-var db_aliases map[string]*DBConnection = make(map[string]*DBConnection)
+var metaCacheLock sync.Mutex = sync.Mutex{}
+var metaCache map[reflect.Type]ColumnCollection
+
+var defaultAlias string
+var defaultAliasLock sync.Mutex = sync.Mutex{}
+var dbAliasesLock sync.Mutex = sync.Mutex{}
+var dbAliases map[string]*DBConnection = make(map[string]*DBConnection)
 
 func CreateDbAlias(alias string, prototype *DBConnection) {
-	db_aliases[alias] = prototype
+	dbAliasesLock.Lock()
+	dbAliases[alias] = prototype
+	dbAliasesLock.Unlock()
 }
 
 func Alias(alias string) *DBConnection {
-	return db_aliases[alias]
+	return dbAliases[alias]
 }
 
 func SetDefaultAlias(alias string) {
-	default_alias = alias
+	defaultAliasLock.Lock()
+	defaultAlias = alias
+	defaultAliasLock.Unlock()
 }
 
 func DefaultDb() *DBConnection {
-	if default_alias != "" {
-		return db_aliases[default_alias]
+	if len(defaultAlias) != 0 {
+		return dbAliases[defaultAlias]
 	} else {
 		return nil
 	}
@@ -41,6 +51,7 @@ func NewDBConnection(host string, schema string, username string, password strin
 	conn.Schema = schema
 	conn.Username = username
 	conn.Password = password
+	conn.SSLMode = "disable"
 	return conn
 }
 
@@ -49,6 +60,7 @@ type DBConnection struct {
 	Schema     string
 	Username   string
 	Password   string
+	SSLMode    string
 	Connection *sql.DB
 	Tx         *sql.Tx
 }
@@ -78,7 +90,7 @@ type Column struct {
 
 type ColumnCollection struct {
 	Columns []Column
-	Lookup  map[string]Column
+	Lookup  map[string]*Column
 }
 
 func (db_alias *DBConnection) IsolateToTransaction(tx *sql.Tx) {
@@ -94,7 +106,6 @@ func (db_alias *DBConnection) IsIsolatedToTransaction() bool {
 }
 
 func (db_alias *DBConnection) Begin() (*sql.Tx, error) {
-
 	if db_alias == nil {
 		return nil, errors.New("`db_alias` is uninitialized, cannot continue.")
 	}
@@ -132,6 +143,10 @@ func (db_alias *DBConnection) WrapInTransaction(action func(*sql.Tx) error) erro
 
 func (db_alias *DBConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
 	if tx == nil {
+		if db_alias == nil {
+			return nil, errors.New("db_alias is nil")
+		}
+
 		if db_alias.Tx != nil {
 			return db_alias.Tx.Prepare(statement)
 		} else {
@@ -147,15 +162,20 @@ func (db_alias *DBConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, 
 	}
 }
 
-func (db_alias *DBConnection) OpenNew() (*sql.DB, error) {
-	var db_string = ""
-	if db_alias.Password != "" {
-		db_string = fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", db_alias.Username, db_alias.Password, db_alias.Host, db_alias.Schema)
+func (db_alias *DBConnection) CreatePostgresConnectionString() string {
+	if db_alias.Username != "" {
+		if db_alias.Password != "" {
+			return fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s", db_alias.Username, db_alias.Password, db_alias.Host, db_alias.Schema, db_alias.SSLMode)
+		} else {
+			return fmt.Sprintf("postgres://%s@%s/%s?sslmode=%s", db_alias.Username, db_alias.Host, db_alias.Schema, db_alias.SSLMode)
+		}
 	} else {
-		db_string = fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", db_alias.Username, db_alias.Host, db_alias.Schema)
+		return fmt.Sprintf("postgres://%s/%s?sslmode=%s", db_alias.Host, db_alias.Schema, db_alias.SSLMode)
 	}
+}
 
-	db_conn, err := sql.Open("postgres", db_string)
+func (db_alias *DBConnection) OpenNew() (*sql.DB, error) {
+	db_conn, err := sql.Open("postgres", db_alias.CreatePostgresConnectionString())
 
 	if err != nil {
 		return nil, err
@@ -226,7 +246,6 @@ func (db_alias DBConnection) GetById(object DatabaseMapped, ids ...interface{}) 
 }
 
 func (db_alias *DBConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql.Tx, ids ...interface{}) error {
-
 	if ids == nil {
 		errors.New("invalid `ids` parameter.")
 	}
@@ -699,8 +718,9 @@ func ReflectSliceType(collection interface{}) reflect.Type {
 
 func CreateColumnCollection(columns []Column) ColumnCollection {
 	cc := ColumnCollection{Columns: columns}
-	lookup := make(map[string]Column)
-	for _, col := range columns {
+	lookup := make(map[string]*Column)
+	for i := 0; i < len(columns); i++ {
+		col := &columns[i]
 		lookup[col.ColumnName] = col
 	}
 	cc.Lookup = lookup
@@ -944,7 +964,19 @@ func GetColumns(object DatabaseMapped) ColumnCollection {
 }
 
 func GetColumnsByType(t reflect.Type) ColumnCollection {
+	metaCacheLock.Lock()
+	defer metaCacheLock.Unlock()
+	if metaCache == nil {
+		metaCache = map[reflect.Type]ColumnCollection{}
+	}
 
+	if _, ok := metaCache[t]; !ok {
+		metaCache[t] = CreateColumnsByType(t)
+	}
+	return metaCache[t]
+}
+
+func CreateColumnsByType(t reflect.Type) ColumnCollection {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
