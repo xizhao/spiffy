@@ -1,7 +1,6 @@
 ### Codename Spiffy ###
 
-This is a very bare bones database interface for golang. It abstracts away a bunch of boilerplate so that the developer
-cant concentrate on writing their app.
+This is a very bare bones database interface for golang. It abstracts away a bunch of boilerplate so that the developer can concentrate on writing their app.
 
 It does not abstract away actual sql, however. 
 
