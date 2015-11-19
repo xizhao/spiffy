@@ -15,7 +15,7 @@ import (
 func TestMain(m *testing.M) {
 	config := dbConnectionFromEnvironment()
 
-	if len(config.Host) == 0 {
+	if len(config.Schema) == 0 {
 		fmt.Println("DB connection environment variables not set up, cannot continue.")
 		os.Exit(1)
 	}
@@ -31,6 +31,10 @@ func dbConnectionFromEnvironment() *DBConnection {
 	var dbSchema string = os.Getenv("DB_SCHEMA")
 	var dbUser string = os.Getenv("DB_USER")
 	var dbPassword string = os.Getenv("DB_PASSWORD")
+
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
 
 	return &DBConnection{Host: dbHost, Schema: dbSchema, Username: dbUser, Password: dbPassword, SSLMode: "disable"}
 }
@@ -399,4 +403,22 @@ func TestMakeCsvTokens(t *testing.T) {
 	a.Equal("$1", one)
 	a.Equal("$1,$2", two)
 	a.Equal("$1,$2,$3", three)
+}
+
+func TestMakeSliceOfType(t *testing.T) {
+	a := assert.New(t)
+	tx, txErr := DefaultDb().Begin()
+	a.NilFatal(txErr)
+	defer tx.Rollback()
+
+	seed_err := seedObjects(10, tx)
+	a.NilFatal(seed_err)
+
+	my_type := ReflectType(BenchObj{})
+	slice_of_t, cast_ok := MakeSliceOfType(my_type).(*[]BenchObj)
+	a.True(cast_ok)
+
+	all_err := DefaultDb().GetAllInTransaction(slice_of_t, tx)
+	a.NilFatal(all_err)
+	a.NotEmpty(slice_of_t)
 }

@@ -869,6 +869,10 @@ func MakeNew(t reflect.Type) DatabaseMapped {
 	return new_interface.(DatabaseMapped)
 }
 
+func MakeSliceOfType(t reflect.Type) interface{} {
+	return reflect.New(reflect.SliceOf(t)).Interface()
+}
+
 func Populate(object DatabaseMapped, row *sql.Rows) error {
 	return PopulateByName(object, row, GetColumns(object))
 }
