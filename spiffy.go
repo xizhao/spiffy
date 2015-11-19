@@ -417,7 +417,7 @@ func (db_alias *DBConnection) GetAllInTransaction(collection interface{}, tx *sq
 	table_name := TableName(t)
 	meta := GetColumnsByType(t)
 
-	column_names := meta.ColumnNames()
+	column_names := meta.NotReadonly().ColumnNames()
 
 	sql_stmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(column_names, ","), table_name)
 
