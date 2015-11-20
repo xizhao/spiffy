@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"./lib/assert"
+	"github.com/blendlabs/go-assert"
 )
 
 //	Testing Entry Point
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func dbConnectionFromEnvironment() *DBConnection {
+func dbConnectionFromEnvironment() *DbConnection {
 	var dbHost string = os.Getenv("DB_HOST")
 	var dbSchema string = os.Getenv("DB_SCHEMA")
 	var dbUser string = os.Getenv("DB_USER")
@@ -36,7 +36,7 @@ func dbConnectionFromEnvironment() *DBConnection {
 		dbHost = "localhost"
 	}
 
-	return &DBConnection{Host: dbHost, Schema: dbSchema, Username: dbUser, Password: dbPassword, SSLMode: "disable"}
+	return &DbConnection{Host: dbHost, Schema: dbSchema, Username: dbUser, Password: dbPassword, SSLMode: "disable"}
 }
 
 //------------------------------------------------------------------------------------------------
@@ -213,17 +213,14 @@ func TestAliases(t *testing.T) {
 
 	SetDefaultAlias("test")
 	defaultConn := DefaultDb()
-	if a.NotNil(defaultConn) {
-		//a.Equal(config.Host, defaultConn.Host)
-	}
-
+	a.NotNil(defaultConn)
 	SetDefaultAlias("main") //assume this returns things to pre-test state
 }
 
 func TestTransactionIsolation(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
-	a.NilFatal(txErr)
+	a.Nil(txErr)
 	DefaultDb().IsolateToTransaction(tx)
 	a.True(DefaultDb().Tx != nil)
 	a.True(DefaultDb().IsIsolatedToTransaction())
@@ -241,7 +238,7 @@ func TestTransactionIsolation(t *testing.T) {
 func TestPrepare(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
-	a.NilFatal(txErr)
+	a.Nil(txErr)
 	createTableEsrr := createTable(tx)
 	a.Nil(createTableEsrr)
 	tx.Rollback()
@@ -250,11 +247,11 @@ func TestPrepare(t *testing.T) {
 func TestQuery(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
-	a.NilFatal(txErr)
+	a.Nil(txErr)
 	defer tx.Rollback()
 
 	seedErr := seedObjects(100, tx)
-	a.NilFatal(seedErr)
+	a.Nil(seedErr)
 
 	objs := []BenchObj{}
 	query_err := DefaultDb().QueryInTransaction("select * from bench_object", tx).OutMany(&objs)
@@ -281,7 +278,7 @@ func TestQuery(t *testing.T) {
 func TestCrUDMethods(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
-	a.NilFatal(txErr)
+	a.Nil(txErr)
 	defer tx.Rollback()
 
 	seedErr := seedObjects(100, tx)
@@ -343,7 +340,7 @@ func TestGetColumns(t *testing.T) {
 	a := assert.New(t)
 
 	obj := myStruct{}
-	meta := GetColumns(obj)
+	meta := getColumns(obj)
 
 	a.NotNil(meta.Columns)
 	a.NotEmpty(meta.Columns)
@@ -387,7 +384,7 @@ func TestSetValue(t *testing.T) {
 
 	var value interface{}
 	value = 10
-	meta := GetColumns(obj)
+	meta := getColumns(obj)
 	pk := meta.Columns[0]
 	pk.SetValue(&obj, value)
 	a.Equal(10, obj.PrimaryKeyCol)
@@ -408,17 +405,17 @@ func TestMakeCsvTokens(t *testing.T) {
 func TestMakeSliceOfType(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
-	a.NilFatal(txErr)
+	a.Nil(txErr)
 	defer tx.Rollback()
 
 	seed_err := seedObjects(10, tx)
-	a.NilFatal(seed_err)
+	a.Nil(seed_err)
 
-	my_type := ReflectType(BenchObj{})
-	slice_of_t, cast_ok := MakeSliceOfType(my_type).(*[]BenchObj)
+	my_type := reflectType(BenchObj{})
+	slice_of_t, cast_ok := makeSliceOfType(my_type).(*[]BenchObj)
 	a.True(cast_ok)
 
 	all_err := DefaultDb().GetAllInTransaction(slice_of_t, tx)
-	a.NilFatal(all_err)
-	a.NotEmpty(slice_of_t)
+	a.Nil(all_err)
+	a.NotEmpty(*slice_of_t)
 }
