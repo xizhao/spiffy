@@ -14,12 +14,6 @@ import (
 //		Loads the connection info from the environment, note; it will fail if `DB_HOST` is not defined.
 func TestMain(m *testing.M) {
 	config := dbConnectionFromEnvironment()
-
-	if len(config.Schema) == 0 {
-		fmt.Println("DB connection environment variables not set up, cannot continue.")
-		os.Exit(1)
-	}
-
 	CreateDbAlias("main", config)
 	SetDefaultAlias("main")
 
@@ -34,6 +28,10 @@ func dbConnectionFromEnvironment() *DbConnection {
 
 	if dbHost == "" {
 		dbHost = "localhost"
+	}
+
+	if dbSchema == "" {
+		dbSchema = "postgres"
 	}
 
 	return &DbConnection{Host: dbHost, Schema: dbSchema, Username: dbUser, Password: dbPassword, SSLMode: "disable"}
@@ -160,7 +158,10 @@ func BenchmarkMain(b *testing.B) {
 
 	defer func() {
 		if tx != nil {
-			tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				b.Errorf("Error rolling back transaction: %v", rollbackErr)
+				b.FailNow()
+			}
 		}
 	}()
 
@@ -221,6 +222,8 @@ func TestTransactionIsolation(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
 	a.Nil(txErr)
+	defer a.Nil(tx.Rollback())
+
 	DefaultDb().IsolateToTransaction(tx)
 	a.True(DefaultDb().Tx != nil)
 	a.True(DefaultDb().IsIsolatedToTransaction())
@@ -231,8 +234,6 @@ func TestTransactionIsolation(t *testing.T) {
 	DefaultDb().ReleaseIsolation()
 	a.False(DefaultDb().IsIsolatedToTransaction())
 
-	rollbackErr := tx.Rollback()
-	a.Nil(rollbackErr)
 }
 
 func TestPrepare(t *testing.T) {
@@ -241,14 +242,16 @@ func TestPrepare(t *testing.T) {
 	a.Nil(txErr)
 	createTableEsrr := createTable(tx)
 	a.Nil(createTableEsrr)
-	tx.Rollback()
+	a.Nil(tx.Rollback())
 }
 
 func TestQuery(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
 	a.Nil(txErr)
-	defer tx.Rollback()
+	defer func() {
+		a.Nil(tx.Rollback())
+	}()
 
 	seedErr := seedObjects(100, tx)
 	a.Nil(seedErr)
@@ -279,7 +282,9 @@ func TestCrUDMethods(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
 	a.Nil(txErr)
-	defer tx.Rollback()
+	defer func() {
+		a.Nil(tx.Rollback())
+	}()
 
 	seedErr := seedObjects(100, tx)
 	a.Nil(seedErr)
@@ -386,7 +391,7 @@ func TestSetValue(t *testing.T) {
 	value = 10
 	meta := getColumns(obj)
 	pk := meta.Columns[0]
-	pk.SetValue(&obj, value)
+	a.Nil(pk.SetValue(&obj, value))
 	a.Equal(10, obj.PrimaryKeyCol)
 }
 
@@ -406,7 +411,9 @@ func TestMakeSliceOfType(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
 	a.Nil(txErr)
-	defer tx.Rollback()
+	defer func() {
+		a.Nil(tx.Rollback())
+	}()
 
 	seed_err := seedObjects(10, tx)
 	a.Nil(seed_err)

@@ -337,10 +337,14 @@ type queryResult struct {
 
 func (q *queryResult) cleanup() error {
 	if q.Rows != nil {
-		q.Rows.Close()
+		if closeErr := q.Rows.Close(); closeErr != nil {
+			return combineErrors(closeErr, q.Error)
+		}
 	}
 	if q.Stmt != nil {
-		q.Stmt.Close()
+		if closeErr := q.Stmt.Close(); closeErr != nil {
+			return combineErrors(closeErr, q.Error)
+		}
 	}
 
 	return q.Error
@@ -354,9 +358,12 @@ func (q *queryResult) Scan(args ...interface{}) error {
 	if q.Rows.Next() {
 		err := q.Rows.Scan(args...)
 		if err != nil {
-			return err
+			q.Error = err
+			return q.cleanup()
 		}
 	}
+
+	q.Error = q.Rows.Err()
 
 	return q.cleanup()
 }
@@ -371,16 +378,12 @@ func (q *queryResult) Out(object DatabaseMapped) error {
 	if q.Rows.Next() {
 		popErr := populateByName(object, q.Rows, meta)
 		if popErr != nil {
-			if q.Rows != nil {
-				q.Rows.Close()
-			}
-			if q.Stmt != nil {
-				q.Stmt.Close()
-			}
-
-			return popErr
+			q.Error = popErr
+			return q.cleanup()
 		}
 	}
+
+	q.Error = q.Rows.Err()
 
 	return q.cleanup()
 }
@@ -400,19 +403,15 @@ func (q *queryResult) OutMany(collection interface{}) error {
 		newObj := makeNew(t)
 		popErr := populateByName(newObj, q.Rows, meta)
 		if popErr != nil {
-			if q.Rows != nil {
-				q.Rows.Close()
-			}
-			if q.Stmt != nil {
-				q.Stmt.Close()
-			}
-
-			return popErr
+			q.Error = popErr
+			return q.cleanup()
 		}
 		newObjValue := reflectValue(newObj)
 		collectionValue.Set(reflect.Append(collectionValue, newObjValue))
 		didSetRows = true
 	}
+
+	q.Error = q.Rows.Err()
 
 	if !didSetRows {
 		collectionValue.Set(reflect.MakeSlice(sliceType, 0, 0))
@@ -489,11 +488,15 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 		return err
 	}
 	if err != nil {
-		tx.Rollback()
-	} else {
-		tx.Commit()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return combineErrors(rollbackErr, err)
+		} else {
+			return err
+		}
+	} else if commitErr := tx.Commit(); commitErr != nil {
+		return commitErr
 	}
-	return err
+	return nil
 }
 
 // Prepares a new statement for the connection.
@@ -570,8 +573,11 @@ func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, ar
 
 	rows, queryErr := stmt.Query(args...)
 	if queryErr != nil {
-		stmt.Close()
-		result.Error = queryErr
+		if closeErr := stmt.Close(); closeErr != nil {
+			result.Error = combineErrors(closeErr, queryErr)
+		} else {
+			result.Error = queryErr
+		}
 		return &result
 	}
 	result.Stmt = stmt
@@ -619,7 +625,7 @@ func (dbAlias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql
 		}
 	}
 
-	return nil
+	return rows.Err()
 }
 
 func (dbAlias *DbConnection) GetAll(collection interface{}) error {
@@ -659,7 +665,7 @@ func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql
 		collection_value.Set(reflect.Append(collection_value, new_obj_value))
 	}
 
-	return nil
+	return rows.Err()
 }
 
 func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
@@ -1049,4 +1055,16 @@ func readFieldTag(field reflect.StructField) *column {
 	}
 
 	return nil
+}
+
+func combineErrors(multipleErrors ...error) error {
+	errorStrings := []string{}
+	for i := 0; i < len(multipleErrors); i++ {
+		e := multipleErrors[i]
+		if e != nil {
+			errorStrings = append(errorStrings, fmt.Sprintf("%v", e))
+		}
+	}
+	errorBody := fmt.Sprintf("multiple errors:\n%s", strings.Join(errorStrings, "\n\t"))
+	return errors.New(errorBody)
 }
