@@ -1,5 +1,7 @@
 ### Codename Spiffy ###
 
+[![Build Status](https://travis-ci.org/blendlabs/spiffy.svg?branch=master)](https://travis-ci.org/blendlabs/spiffy)
+
 This is a very bare bones database interface for golang. It abstracts away a bunch of boilerplate so that the developer can concentrate on writing their app.
 
 It does not abstract away actual sql, however. 
