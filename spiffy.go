@@ -548,8 +548,7 @@ func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, arg
 	}
 	defer stmt.Close()
 
-	_, execErr := stmt.Exec(args...)
-	if execErr != nil {
+	if _, execErr := stmt.Exec(args...); execErr != nil {
 		return execErr
 	}
 
