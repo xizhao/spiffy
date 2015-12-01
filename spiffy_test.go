@@ -10,8 +10,10 @@ import (
 	"github.com/blendlabs/go-assert"
 )
 
-//	Testing Entry Point
-//		Loads the connection info from the environment, note; it will fail if `DB_HOST` is not defined.
+//------------------------------------------------------------------------------------------------
+// Testing Entrypoint
+//------------------------------------------------------------------------------------------------
+
 func TestMain(m *testing.M) {
 	config := dbConnectionFromEnvironment()
 	CreateDbAlias("main", config)
@@ -38,7 +40,7 @@ func dbConnectionFromEnvironment() *DbConnection {
 }
 
 //------------------------------------------------------------------------------------------------
-// Start: Benchmarking
+// Benchmarking
 //------------------------------------------------------------------------------------------------
 
 type BenchObj struct {
@@ -191,8 +193,34 @@ func BenchmarkMain(b *testing.B) {
 }
 
 //------------------------------------------------------------------------------------------------
-// End: Benchmarking
+// Testing
 //------------------------------------------------------------------------------------------------
+
+func TestNewAunauthenticatedDbConnection(t *testing.T) {
+	a := assert.New(t)
+	conn := NewUnauthenticatedDbConnection("test_host", "test_schema")
+	a.Equal("test_host", conn.Host)
+	a.Equal("test_schema", conn.Schema)
+}
+
+func TestNewDbConnection(t *testing.T) {
+	a := assert.New(t)
+	conn := NewDbConnection("test_host", "test_schema", "test_user", "test_password")
+	a.Equal("test_host", conn.Host)
+	a.Equal("test_schema", conn.Schema)
+	a.Equal("test_user", conn.Username)
+	a.Equal("test_password", conn.Password)
+}
+
+func TestNewSSLDbConnection(t *testing.T) {
+	a := assert.New(t)
+	conn := NewSSLDbConnection("test_host", "test_schema", "test_user", "test_password", "a good one")
+	a.Equal("test_host", conn.Host)
+	a.Equal("test_schema", conn.Schema)
+	a.Equal("test_user", conn.Username)
+	a.Equal("test_password", conn.Password)
+	a.Equal("a good one", conn.SSLMode)
+}
 
 func TestSanityCheck(t *testing.T) {
 	config := dbConnectionFromEnvironment()
@@ -204,18 +232,26 @@ func TestSanityCheck(t *testing.T) {
 }
 
 func TestAliases(t *testing.T) {
+	oldDefaultAlias := defaultAlias
+	defaultAlias = ""
+	defer func() {
+		defaultAlias = oldDefaultAlias
+	}()
+
 	a := assert.New(t)
 	config := dbConnectionFromEnvironment()
 
 	CreateDbAlias("test", config)
 
 	gotConn := Alias("test")
-	a.Equal(config.Username, gotConn.Username)
+	a.Equal(config.Username, gotConn.Username, "Alias(name) should return the correct alias.")
+
+	shouldBeNil := DefaultDb()
+	a.Nil(shouldBeNil, "DefaultDb() without an alias should return nil.", fmt.Sprintf("%v", shouldBeNil))
 
 	SetDefaultAlias("test")
 	defaultConn := DefaultDb()
-	a.NotNil(defaultConn)
-	SetDefaultAlias("main") //assume this returns things to pre-test state
+	a.NotNil(defaultConn, "DefaultDb() with an alias should return the aliased connection.")
 }
 
 func TestTransactionIsolation(t *testing.T) {
