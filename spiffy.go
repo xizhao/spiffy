@@ -45,8 +45,8 @@ type DatabaseMapped interface {
 // You can later set an alias as 'default' and refer to it using `spiffy.DefaultDb()`.
 func CreateDbAlias(alias string, prototype *DbConnection) {
 	dbAliasesLock.Lock()
+	defer dbAliasesLock.Unlock()
 	dbAliases[alias] = prototype
-	dbAliasesLock.Unlock()
 }
 
 // Fetch a connection by its alias.
@@ -67,8 +67,8 @@ func Alias(alias string) *DbConnection {
 // This will then let you refer to the alias via. `DefaultDb()`
 func SetDefaultAlias(alias string) {
 	defaultAliasLock.Lock()
+	defer defaultAliasLock.Unlock()
 	defaultAlias = alias
-	defaultAliasLock.Unlock()
 }
 
 // Returns a reference to the DbConnection set as default.
@@ -79,9 +79,8 @@ func SetDefaultAlias(alias string) {
 func DefaultDb() *DbConnection {
 	if len(defaultAlias) != 0 {
 		return dbAliases[defaultAlias]
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // Creates a new DbConnection without Username or Password or SSLMode
@@ -336,16 +335,20 @@ type queryResult struct {
 	Error error
 }
 
+func (q *queryResult) cleanup() error {
+	if q.Rows != nil {
+		q.Rows.Close()
+	}
+	if q.Stmt != nil {
+		q.Stmt.Close()
+	}
+
+	return q.Error
+}
+
 func (q *queryResult) Scan(args ...interface{}) error {
 	if q.Error != nil {
-		if q.Rows != nil {
-			q.Rows.Close()
-		}
-		if q.Stmt != nil {
-			q.Stmt.Close()
-		}
-
-		return q.Error
+		return q.cleanup()
 	}
 
 	if q.Rows.Next() {
@@ -355,34 +358,19 @@ func (q *queryResult) Scan(args ...interface{}) error {
 		}
 	}
 
-	if q.Rows != nil {
-		q.Rows.Close()
-	}
-	if q.Stmt != nil {
-		q.Stmt.Close()
-	}
-
-	return nil
+	return q.cleanup()
 }
 
 func (q *queryResult) Out(object DatabaseMapped) error {
-
 	if q.Error != nil {
-		if q.Rows != nil {
-			q.Rows.Close()
-		}
-		if q.Stmt != nil {
-			q.Stmt.Close()
-		}
-
-		return q.Error
+		return q.cleanup()
 	}
 
 	meta := getColumns(object)
 
 	if q.Rows.Next() {
-		pop_err := populateByName(object, q.Rows, meta)
-		if pop_err != nil {
+		popErr := populateByName(object, q.Rows, meta)
+		if popErr != nil {
 			if q.Rows != nil {
 				q.Rows.Close()
 			}
@@ -390,42 +378,28 @@ func (q *queryResult) Out(object DatabaseMapped) error {
 				q.Stmt.Close()
 			}
 
-			return pop_err
+			return popErr
 		}
 	}
 
-	if q.Rows != nil {
-		q.Rows.Close()
-	}
-	if q.Stmt != nil {
-		q.Stmt.Close()
-	}
-
-	return nil
+	return q.cleanup()
 }
 
 func (q *queryResult) OutMany(collection interface{}) error {
 	if q.Error != nil {
-		if q.Rows != nil {
-			q.Rows.Close()
-		}
-		if q.Stmt != nil {
-			q.Stmt.Close()
-		}
-
-		return q.Error
+		return q.cleanup()
 	}
 
-	collection_value := reflectValue(collection)
+	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
-	slice_t := reflectType(collection)
+	sliceType := reflectType(collection)
 	meta := getColumnsByType(t)
 
-	did_set_rows := false
+	didSetRows := false
 	for q.Rows.Next() {
-		new_obj := makeNew(t)
-		pop_err := populateByName(new_obj, q.Rows, meta)
-		if pop_err != nil {
+		newObj := makeNew(t)
+		popErr := populateByName(newObj, q.Rows, meta)
+		if popErr != nil {
 			if q.Rows != nil {
 				q.Rows.Close()
 			}
@@ -433,25 +407,18 @@ func (q *queryResult) OutMany(collection interface{}) error {
 				q.Stmt.Close()
 			}
 
-			return pop_err
+			return popErr
 		}
-		new_obj_value := reflectValue(new_obj)
-		collection_value.Set(reflect.Append(collection_value, new_obj_value))
-		did_set_rows = true
+		newObjValue := reflectValue(newObj)
+		collectionValue.Set(reflect.Append(collectionValue, newObjValue))
+		didSetRows = true
 	}
 
-	if !did_set_rows {
-		collection_value.Set(reflect.MakeSlice(slice_t, 0, 0))
+	if !didSetRows {
+		collectionValue.Set(reflect.MakeSlice(sliceType, 0, 0))
 	}
 
-	if q.Rows != nil {
-		q.Rows.Close()
-	}
-	if q.Stmt != nil {
-		q.Stmt.Close()
-	}
-
-	return nil
+	return q.cleanup()
 }
 
 // --------------------------------------------------------------------------------
@@ -502,11 +469,11 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	} else if dbAlias.Connection != nil {
 		return dbAlias.Connection.Begin()
 	} else {
-		db_conn, open_err := dbAlias.OpenNew()
-		if open_err != nil {
-			return nil, open_err
+		dbConn, openErr := dbAlias.OpenNew()
+		if openErr != nil {
+			return nil, openErr
 		}
-		dbAlias.Connection = db_conn
+		dbAlias.Connection = dbConn
 		return dbAlias.Connection.Begin()
 	}
 }
@@ -539,11 +506,10 @@ func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, e
 		if dbAlias.Tx != nil {
 			return dbAlias.Tx.Prepare(statement)
 		} else {
-			db_conn, db_err := dbAlias.Open()
-			if db_err != nil {
-				return nil, db_err
+			if dbConn, dbErr := dbAlias.Open(); dbErr != nil {
+				return nil, dbErr
 			} else {
-				return db_conn.Prepare(statement)
+				return dbConn.Prepare(statement)
 			}
 		}
 	} else {
@@ -561,10 +527,10 @@ func (dbAlias *DbConnection) OpenNew() (*sql.DB, error) {
 
 func (dbAlias *DbConnection) Open() (*sql.DB, error) {
 	if dbAlias.Connection == nil {
-		if new_conn, err := dbAlias.OpenNew(); err != nil {
+		if newConn, err := dbAlias.OpenNew(); err != nil {
 			return nil, err
 		} else {
-			dbAlias.Connection = new_conn
+			dbAlias.Connection = newConn
 		}
 	}
 	return dbAlias.Connection, nil
@@ -575,16 +541,16 @@ func (dbAlias *DbConnection) Exec(statement string, args ...interface{}) error {
 }
 
 func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, args ...interface{}) error {
-	stmt, stmt_err := dbAlias.Prepare(statement, tx)
+	stmt, stmtErr := dbAlias.Prepare(statement, tx)
 
-	if stmt_err != nil {
-		return stmt_err
+	if stmtErr != nil {
+		return stmtErr
 	}
 	defer stmt.Close()
 
-	_, exec_err := stmt.Exec(args...)
-	if exec_err != nil {
-		return exec_err
+	_, execErr := stmt.Exec(args...)
+	if execErr != nil {
+		return execErr
 	}
 
 	return nil
@@ -597,16 +563,16 @@ func (dbAlias *DbConnection) Query(statement string, args ...interface{}) *query
 func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, args ...interface{}) *queryResult {
 	result := queryResult{}
 
-	stmt, stmt_err := dbAlias.Prepare(statement, tx)
-	if stmt_err != nil {
-		result.Error = stmt_err
+	stmt, stmtErr := dbAlias.Prepare(statement, tx)
+	if stmtErr != nil {
+		result.Error = stmtErr
 		return &result
 	}
 
-	rows, query_err := stmt.Query(args...)
-	if query_err != nil {
+	rows, queryErr := stmt.Query(args...)
+	if queryErr != nil {
 		stmt.Close()
-		result.Error = query_err
+		result.Error = queryErr
 		return &result
 	}
 	result.Stmt = stmt
@@ -624,35 +590,33 @@ func (dbAlias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql
 	}
 
 	meta := getColumns(object)
-	standard_cols := meta.NotReadonly()
-	column_names := standard_cols.ColumnNames()
-	table_name := object.TableName()
-	pks := standard_cols.PrimaryKeys()
+	standardCols := meta.NotReadonly()
+	columnNames := standardCols.ColumnNames()
+	tableName := object.TableName()
+	pks := standardCols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
 		return errors.New("no primary key on object to get by.")
 	}
 
-	where_clause := makeWhereClause(pks, 1)
-	query_body := fmt.Sprintf("SELECT %s FROM %s %s", strings.Join(column_names, ","), table_name, where_clause)
+	queryBody := fmt.Sprintf("SELECT %s FROM %s %s", strings.Join(columnNames, ","), tableName, makeWhereClause(pks, 1))
 
-	stmt, stmt_err := dbAlias.Prepare(query_body, tx)
-	if stmt_err != nil {
-		return stmt_err
+	stmt, stmtErr := dbAlias.Prepare(queryBody, tx)
+	if stmtErr != nil {
+		return stmtErr
 	}
 	defer stmt.Close()
 
-	rows, query_err := stmt.Query(ids...)
-	if query_err != nil {
-		return query_err
+	rows, queryErr := stmt.Query(ids...)
+	if queryErr != nil {
+		return queryErr
 	}
 
 	defer rows.Close()
 
 	for rows.Next() {
-		pop_err := populateInOrder(object, rows, standard_cols)
-		if pop_err != nil {
-			return pop_err
+		if popErr := populateInOrder(object, rows, standardCols); popErr != nil {
+			return popErr
 		}
 	}
 
@@ -666,22 +630,22 @@ func (dbAlias *DbConnection) GetAll(collection interface{}) error {
 func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx) error {
 	collection_value := reflectValue(collection)
 	t := reflectSliceType(collection)
-	table_name := tableName(t)
+	tableName := tableName(t)
 	meta := getColumnsByType(t).NotReadonly()
 
 	column_names := meta.ColumnNames()
 
-	sql_stmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(column_names, ","), table_name)
+	sqlStmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(column_names, ","), tableName)
 
-	stmt, statment_err := dbAlias.Prepare(sql_stmt, tx)
+	stmt, statment_err := dbAlias.Prepare(sqlStmt, tx)
 	if statment_err != nil {
 		return statment_err
 	}
 	defer stmt.Close()
 
-	rows, query_err := stmt.Query()
-	if query_err != nil {
-		return query_err
+	rows, queryErr := stmt.Query()
+	if queryErr != nil {
+		return queryErr
 	}
 
 	defer rows.Close()
@@ -705,55 +669,55 @@ func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
 
 func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
 	cols := getColumns(object)
-	write_cols := cols.NotReadonly().NotSerials()
+	writeCols := cols.NotReadonly().NotSerials()
 	//NOTE: we're only using one.
 	serials := cols.Serials()
-	table_name := object.TableName()
-	col_names := write_cols.ColumnNames()
-	col_values := write_cols.ColumnValues(object)
-	tokens := makeCsvTokens(len(write_cols.Columns))
+	tableName := object.TableName()
+	colNames := writeCols.ColumnNames()
+	colValues := writeCols.ColumnValues(object)
+	tokens := makeCsvTokens(len(writeCols.Columns))
 
-	var sql_stmt string
+	var sqlStmt string
 	if len(serials.Columns) == 0 {
-		sql_stmt = fmt.Sprintf(
+		sqlStmt = fmt.Sprintf(
 			"INSERT INTO %s (%s) VALUES (%s)",
-			table_name,
-			strings.Join(col_names, ","),
+			tableName,
+			strings.Join(colNames, ","),
 			tokens,
 		)
 	} else {
 		serial := serials.Columns[0]
-		sql_stmt = fmt.Sprintf(
+		sqlStmt = fmt.Sprintf(
 			"INSERT INTO %s (%s) VALUES (%s) RETURNING %s",
-			table_name,
-			strings.Join(col_names, ","),
+			tableName,
+			strings.Join(colNames, ","),
 			tokens,
 			serial.ColumnName,
 		)
 	}
 
-	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
-	if stmt_err != nil {
-		return stmt_err
+	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
+	if stmtErr != nil {
+		return stmtErr
 	}
 	defer stmt.Close()
 
 	if len(serials.Columns) == 0 {
-		_, exec_err := stmt.Exec(col_values...)
-		if exec_err != nil {
-			return exec_err
+		_, execErr := stmt.Exec(colValues...)
+		if execErr != nil {
+			return execErr
 		}
 	} else {
 		serial := serials.Columns[0]
 
 		var id interface{}
-		exec_err := stmt.QueryRow(col_values...).Scan(&id)
-		if exec_err != nil {
-			return exec_err
+		execErr := stmt.QueryRow(colValues...).Scan(&id)
+		if execErr != nil {
+			return execErr
 		}
-		set_err := serial.SetValue(object, id)
-		if set_err != nil {
-			return set_err
+		setErr := serial.SetValue(object, id)
+		if setErr != nil {
+			return setErr
 		}
 	}
 
@@ -765,35 +729,35 @@ func (dbAlias *DbConnection) Update(object DatabaseMapped) error {
 }
 
 func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
-	table_name := object.TableName()
+	tableName := object.TableName()
 
 	cols := getColumns(object)
-	write_cols := cols.NotReadonly().NotSerials().NotPrimaryKeys()
+	writeCols := cols.NotReadonly().NotSerials().NotPrimaryKeys()
 	pks := cols.PrimaryKeys()
-	all_cols := write_cols.ConcatWith(pks)
+	allCols := writeCols.ConcatWith(pks)
 
-	total_values := all_cols.ColumnValues(object)
+	totalValues := allCols.ColumnValues(object)
 
-	number_of_columns := len(write_cols.Columns)
+	numColumns := len(writeCols.Columns)
 
-	sql_stmt := "UPDATE " + table_name + " SET "
-	for i, col := range write_cols.Columns {
-		sql_stmt = sql_stmt + col.ColumnName + " = $" + strconv.Itoa(i+1)
-		if i != number_of_columns-1 {
-			sql_stmt = sql_stmt + ","
+	sqlStmt := "UPDATE " + tableName + " SET "
+	for i, col := range writeCols.Columns {
+		sqlStmt = sqlStmt + col.ColumnName + " = $" + strconv.Itoa(i+1)
+		if i != numColumns-1 {
+			sqlStmt = sqlStmt + ","
 		}
 	}
 
-	where_clause := makeWhereClause(pks, number_of_columns+1)
+	whereClause := makeWhereClause(pks, numColumns+1)
 
-	sql_stmt = sql_stmt + where_clause
+	sqlStmt = sqlStmt + whereClause
 
-	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
-	if stmt_err != nil {
-		return stmt_err
+	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
+	if stmtErr != nil {
+		return stmtErr
 	}
 	defer stmt.Close()
-	_, err := stmt.Exec(total_values...)
+	_, err := stmt.Exec(totalValues...)
 
 	if err != nil {
 		return err
@@ -807,25 +771,25 @@ func (dbAlias *DbConnection) Exists(object DatabaseMapped) (bool, error) {
 }
 
 func (dbAlias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.Tx) (bool, error) {
-	table_name := object.TableName()
+	tableName := object.TableName()
 	cols := getColumns(object)
 	pks := cols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
 		return false, errors.New("No primary key on object.")
 	}
-	where_clause := makeWhereClause(pks, 1)
-	sql_stmt := fmt.Sprintf("SELECT 1 FROM %s %s", table_name, where_clause)
-	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
-	if stmt_err != nil {
-		return false, stmt_err
+	whereClause := makeWhereClause(pks, 1)
+	sqlStmt := fmt.Sprintf("SELECT 1 FROM %s %s", tableName, whereClause)
+	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
+	if stmtErr != nil {
+		return false, stmtErr
 	}
 	defer stmt.Close()
-	pk_values := pks.ColumnValues(object)
-	rows, query_err := stmt.Query(pk_values...)
+	pkValues := pks.ColumnValues(object)
+	rows, queryErr := stmt.Query(pkValues...)
 	defer rows.Close()
-	if query_err != nil {
-		return false, query_err
+	if queryErr != nil {
+		return false, queryErr
 	}
 
 	exists := rows.Next()
@@ -837,7 +801,7 @@ func (dbAlias *DbConnection) Delete(object DatabaseMapped) error {
 }
 
 func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.Tx) error {
-	table_name := object.TableName()
+	tableName := object.TableName()
 	cols := getColumns(object)
 	pks := cols.PrimaryKeys()
 
@@ -845,23 +809,19 @@ func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.
 		return errors.New("No primary key on object.")
 	}
 
-	where_clause := makeWhereClause(pks, 1)
-	sql_stmt := fmt.Sprintf("DELETE FROM %s %s", table_name, where_clause)
+	whereClause := makeWhereClause(pks, 1)
+	sqlStmt := fmt.Sprintf("DELETE FROM %s %s", tableName, whereClause)
 
-	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
-	if stmt_err != nil {
-		return stmt_err
+	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
+	if stmtErr != nil {
+		return stmtErr
 	}
 	defer stmt.Close()
 
-	pk_values := pks.ColumnValues(object)
+	pkValues := pks.ColumnValues(object)
 
-	_, err := stmt.Exec(pk_values...)
-
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := stmt.Exec(pkValues...)
+	return err
 }
 
 // --------------------------------------------------------------------------------
@@ -895,15 +855,15 @@ func reflectSliceType(collection interface{}) reflect.Type {
 }
 
 func makeWhereClause(pks columnCollection, start_at int) string {
-	where_clause := " WHERE "
+	whereClause := " WHERE "
 	for i, pk := range pks.Columns {
-		where_clause = where_clause + fmt.Sprintf("%s = %s", pk.ColumnName, "$"+strconv.Itoa(i+start_at))
+		whereClause = whereClause + fmt.Sprintf("%s = %s", pk.ColumnName, "$"+strconv.Itoa(i+start_at))
 		if i < (len(pks.Columns) - 1) {
-			where_clause = where_clause + " AND "
+			whereClause = whereClause + " AND "
 		}
 	}
 
-	return where_clause
+	return whereClause
 }
 
 func makeCsvTokens(num int) string {
@@ -922,8 +882,8 @@ func tableName(t reflect.Type) string {
 }
 
 func makeNew(t reflect.Type) DatabaseMapped {
-	new_interface := reflect.New(t).Interface()
-	return new_interface.(DatabaseMapped)
+	newInterface := reflect.New(t).Interface()
+	return newInterface.(DatabaseMapped)
 }
 
 func makeSliceOfType(t reflect.Type) interface{} {
@@ -935,15 +895,15 @@ func populate(object DatabaseMapped, row *sql.Rows) error {
 }
 
 func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection) error {
-	row_columns, row_columns_err := row.Columns()
+	rowColumns, rowColumnsErr := row.Columns()
 
-	if row_columns_err != nil {
-		return row_columns_err
+	if rowColumnsErr != nil {
+		return rowColumnsErr
 	}
 
-	var values = make([]interface{}, len(row_columns))
+	var values = make([]interface{}, len(rowColumns))
 
-	for i, name := range row_columns {
+	for i, name := range rowColumns {
 		if col, ok := cols.Lookup[name]; ok {
 			if col.IsJson {
 				str := ""
@@ -957,16 +917,16 @@ func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection)
 		}
 	}
 
-	scan_err := row.Scan(values...)
+	scanErr := row.Scan(values...)
 
-	if scan_err != nil {
-		return scan_err
+	if scanErr != nil {
+		return scanErr
 	}
 
 	for i, v := range values {
-		col_name := row_columns[i]
+		colName := rowColumns[i]
 
-		if field, ok := cols.Lookup[col_name]; ok {
+		if field, ok := cols.Lookup[colName]; ok {
 			err := field.SetValue(object, v)
 			if err != nil {
 				return err
@@ -1003,10 +963,10 @@ func populateInOrder(object DatabaseMapped, row *sql.Rows, cols columnCollection
 		}
 	}
 
-	scan_err := row.Scan(values...)
+	scanErr := row.Scan(values...)
 
-	if scan_err != nil {
-		return scan_err
+	if scanErr != nil {
+		return scanErr
 	}
 
 	for i, v := range values {
@@ -1027,6 +987,7 @@ func getColumns(object DatabaseMapped) columnCollection {
 func getColumnsByType(t reflect.Type) columnCollection {
 	metaCacheLock.Lock()
 	defer metaCacheLock.Unlock()
+
 	if metaCache == nil {
 		metaCache = map[reflect.Type]columnCollection{}
 	}
@@ -1042,18 +1003,17 @@ func createColumnsByType(t reflect.Type) columnCollection {
 		t = t.Elem()
 	}
 
-	table_name := tableName(t)
-
-	number_of_fields := t.NumField()
+	tableName := tableName(t)
+	numFields := t.NumField()
 
 	var cols []column
-	for index := 0; index < number_of_fields; index++ {
+	for index := 0; index < numFields; index++ {
 		field := t.Field(index)
 		if !field.Anonymous {
 			col := readFieldTag(field)
 			if col != nil {
 				col.Index = index
-				col.TableName = table_name
+				col.TableName = tableName
 				cols = append(cols, *col)
 			}
 		}
