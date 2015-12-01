@@ -8,4 +8,4 @@ before_script:
   - psql -c 'create database travis_ci_test;' -U postgres
 
 script: 
-  - DB_HOST=localhost DB_SCHEMA=travis_ci_test go test
+  - DB_SCHEMA=travis_ci_test go test
