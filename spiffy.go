@@ -146,45 +146,44 @@ type column struct {
 }
 
 func (c column) SetValue(object DatabaseMapped, value interface{}) error {
-	obj_value := reflectValue(object)
-	field := obj_value.FieldByName(c.FieldName)
-	field_type := field.Type()
+	objValue := reflectValue(object)
+	field := objValue.FieldByName(c.FieldName)
+	fieldType := field.Type()
 	if field.CanSet() {
-		value_reflected := reflectValue(value)
-		if value_reflected.IsValid() {
+		valueReflected := reflectValue(value)
+		if valueReflected.IsValid() {
 			if c.IsJson {
-				typed_value, ok := value_reflected.Interface().(string)
-				if ok && len(typed_value) != 0 {
-					field_addr := field.Addr().Interface()
-					json_err := jsonDeserialize(field_addr, typed_value)
-					if json_err != nil {
-						return json_err
+				valueAsString, ok := valueReflected.Interface().(string)
+				if ok && len(valueAsString) != 0 {
+					fieldAddr := field.Addr().Interface()
+					jsonErr := json.Unmarshal([]byte(valueAsString), fieldAddr)
+					if jsonErr != nil {
+						return jsonErr
 					}
-					field.Set(reflect.ValueOf(field_addr).Elem())
+					field.Set(reflect.ValueOf(fieldAddr).Elem())
 				}
 			} else {
-				if value_reflected.Type().AssignableTo(field_type) {
-					if field.Kind() == reflect.Ptr && value_reflected.CanAddr() {
-						field.Set(value_reflected.Addr())
+				if valueReflected.Type().AssignableTo(fieldType) {
+					if field.Kind() == reflect.Ptr && valueReflected.CanAddr() {
+						field.Set(valueReflected.Addr())
 					} else {
-						field.Set(value_reflected)
+						field.Set(valueReflected)
 					}
 				} else {
 					if field.Kind() == reflect.Ptr {
-						if value_reflected.CanAddr() {
-							if field_type.Elem() == value_reflected.Type() {
-								field.Set(value_reflected.Addr())
+						if valueReflected.CanAddr() {
+							if fieldType.Elem() == valueReflected.Type() {
+								field.Set(valueReflected.Addr())
 							} else {
-								converted_value := value_reflected.Convert(field_type.Elem())
-								if converted_value.CanAddr() {
-									field.Set(converted_value.Addr())
-
+								convertedValue := valueReflected.Convert(fieldType.Elem())
+								if convertedValue.CanAddr() {
+									field.Set(convertedValue.Addr())
 								}
 							}
 						}
 					} else {
-						converted_value := value_reflected.Convert(field_type)
-						field.Set(converted_value)
+						convertedValue := valueReflected.Convert(fieldType)
+						field.Set(convertedValue)
 					}
 				}
 			}
@@ -197,8 +196,8 @@ func (c column) SetValue(object DatabaseMapped, value interface{}) error {
 
 func (c column) GetValue(object DatabaseMapped) interface{} {
 	value := reflectValue(object)
-	value_field := value.Field(c.Index)
-	return value_field.Interface()
+	valueField := value.Field(c.Index)
+	return valueField.Interface()
 }
 
 // --------------------------------------------------------------------------------
@@ -223,67 +222,67 @@ func newcolumnCollection(columns []column) columnCollection {
 
 //things we use as where predicates and can't update
 func (cc columnCollection) PrimaryKeys() columnCollection {
-	var pks []column
+	var cols []column
 	for _, c := range cc.Columns {
 		if c.IsPrimaryKey {
-			pks = append(pks, c)
+			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(pks)
+	return newcolumnCollection(cols)
 }
 
 //things we can update
 func (cc columnCollection) NotPrimaryKeys() columnCollection {
-	var pks []column
+	var cols []column
 	for _, c := range cc.Columns {
 		if !c.IsPrimaryKey {
-			pks = append(pks, c)
+			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(pks)
+	return newcolumnCollection(cols)
 }
 
 //things we have to return the id of ...
 func (cc columnCollection) Serials() columnCollection {
-	var pks []column
+	var cols []column
 	for _, c := range cc.Columns {
 		if c.IsSerial {
-			pks = append(pks, c)
+			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(pks)
+	return newcolumnCollection(cols)
 }
 
 //things we don't have to return the id of ...
 func (cc columnCollection) NotSerials() columnCollection {
-	var pks []column
+	var cols []column
 	for _, c := range cc.Columns {
 		if !c.IsSerial {
-			pks = append(pks, c)
+			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(pks)
+	return newcolumnCollection(cols)
 }
 
 //a.k.a. not things we insert
 func (cc columnCollection) ReadOnly() columnCollection {
-	var pks []column
+	var cols []column
 	for _, c := range cc.Columns {
 		if c.IsReadOnly {
-			pks = append(pks, c)
+			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(pks)
+	return newcolumnCollection(cols)
 }
 
 func (cc columnCollection) NotReadonly() columnCollection {
-	var pks []column
+	var cols []column
 	for _, c := range cc.Columns {
 		if !c.IsReadOnly {
-			pks = append(pks, c)
+			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(pks)
+	return newcolumnCollection(cols)
 }
 
 func (cc columnCollection) ColumnNames() []string {
@@ -299,12 +298,13 @@ func (cc columnCollection) ColumnValues(instance interface{}) []interface{} {
 
 	var values []interface{}
 	for _, c := range cc.Columns {
-		value_field := value.FieldByName(c.FieldName)
+		valueField := value.FieldByName(c.FieldName)
 		if c.IsJson {
-			to_serialize := value_field.Interface()
-			values = append(values, jsonSerialize(to_serialize))
+			toSerialize := valueField.Interface()
+			jsonBytes, _ := json.Marshal(toSerialize)
+			values = append(values, string(jsonBytes))
 		} else {
-			values = append(values, value_field.Interface())
+			values = append(values, valueField.Interface())
 		}
 
 	}
@@ -315,19 +315,14 @@ func (cc columnCollection) FirstOrDefault() *column {
 	if len(cc.Columns) > 0 {
 		col := cc.Columns[0]
 		return &col
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (cc columnCollection) ConcatWith(other columnCollection) columnCollection {
 	var total []column
-	for _, c := range cc.Columns {
-		total = append(total, c)
-	}
-	for _, c := range other.Columns {
-		total = append(total, c)
-	}
+	total = append(total, cc.Columns...)
+	total = append(total, other.Columns...)
 	return newcolumnCollection(total)
 }
 
@@ -464,66 +459,66 @@ func (q *queryResult) OutMany(collection interface{}) error {
 // --------------------------------------------------------------------------------
 
 // Returns a sql connection string from a given set of DbConnection parameters
-func (db_alias *DbConnection) CreatePostgresConnectionString() string {
+func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
 	sslMode := "?sslmode=disable"
-	if db_alias.SSLMode != "" {
-		sslMode = fmt.Sprintf("?sslmode=%s", db_alias.SSLMode)
+	if dbAlias.SSLMode != "" {
+		sslMode = fmt.Sprintf("?sslmode=%s", dbAlias.SSLMode)
 	}
 
-	if db_alias.Username != "" {
-		if db_alias.Password != "" {
-			return fmt.Sprintf("postgres://%s:%s@%s/%s%s", db_alias.Username, db_alias.Password, db_alias.Host, db_alias.Schema, sslMode)
+	if dbAlias.Username != "" {
+		if dbAlias.Password != "" {
+			return fmt.Sprintf("postgres://%s:%s@%s/%s%s", dbAlias.Username, dbAlias.Password, dbAlias.Host, dbAlias.Schema, sslMode)
 		} else {
-			return fmt.Sprintf("postgres://%s@%s/%s%s", db_alias.Username, db_alias.Host, db_alias.Schema, sslMode)
+			return fmt.Sprintf("postgres://%s@%s/%s%s", dbAlias.Username, dbAlias.Host, dbAlias.Schema, sslMode)
 		}
 	} else {
-		return fmt.Sprintf("postgres://%s/%s%s", db_alias.Host, db_alias.Schema, sslMode)
+		return fmt.Sprintf("postgres://%s/%s%s", dbAlias.Host, dbAlias.Schema, sslMode)
 	}
 }
 
 // Isolates a DbConnection, globally, to a transaction. This means that any operations called after this method will use the same transaction.
-func (db_alias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
-	db_alias.Tx = tx
+func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
+	dbAlias.Tx = tx
 }
 
 // Releases an isolation, does not commit or rollback.
-func (db_alias *DbConnection) ReleaseIsolation() {
-	db_alias.Tx = nil
+func (dbAlias *DbConnection) ReleaseIsolation() {
+	dbAlias.Tx = nil
 }
 
 // Indicates if a connection is isolated to a transaction.
-func (db_alias *DbConnection) IsIsolatedToTransaction() bool {
-	return db_alias.Tx != nil
+func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
+	return dbAlias.Tx != nil
 }
 
 // Starts a new transaction.
-func (db_alias *DbConnection) Begin() (*sql.Tx, error) {
-	if db_alias == nil {
-		return nil, errors.New("`db_alias` is uninitialized, cannot continue.")
+func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
+	if dbAlias == nil {
+		return nil, errors.New("`dbAlias` is uninitialized, cannot continue.")
 	}
 
-	if db_alias.Tx != nil {
-		return db_alias.Tx, nil
-	} else if db_alias.Connection != nil {
-		return db_alias.Connection.Begin()
+	if dbAlias.Tx != nil {
+		return dbAlias.Tx, nil
+	} else if dbAlias.Connection != nil {
+		return dbAlias.Connection.Begin()
 	} else {
-		db_conn, open_err := db_alias.OpenNew()
+		db_conn, open_err := dbAlias.OpenNew()
 		if open_err != nil {
 			return nil, open_err
 		}
-		db_alias.Connection = db_conn
-		return db_alias.Connection.Begin()
+		dbAlias.Connection = db_conn
+		return dbAlias.Connection.Begin()
 	}
 }
 
 // Performs the given action wrapped in a transaction. Will Commit() on success and Rollback() on a non-nil error returned.
-func (db_alias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error {
-	tx, err := db_alias.Begin()
+func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error {
+	tx, err := dbAlias.Begin()
 	if err != nil {
 		return err
 	}
 	err = action(tx)
-	if db_alias.IsIsolatedToTransaction() {
+	if dbAlias.IsIsolatedToTransaction() {
 		return err
 	}
 	if err != nil {
@@ -535,16 +530,16 @@ func (db_alias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) erro
 }
 
 // Prepares a new statement for the connection.
-func (db_alias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
+func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
 	if tx == nil {
-		if db_alias == nil {
-			return nil, errors.New("db_alias is nil")
+		if dbAlias == nil {
+			return nil, errors.New("dbAlias is nil")
 		}
 
-		if db_alias.Tx != nil {
-			return db_alias.Tx.Prepare(statement)
+		if dbAlias.Tx != nil {
+			return dbAlias.Tx.Prepare(statement)
 		} else {
-			db_conn, db_err := db_alias.Open()
+			db_conn, db_err := dbAlias.Open()
 			if db_err != nil {
 				return nil, db_err
 			} else {
@@ -556,34 +551,31 @@ func (db_alias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, 
 	}
 }
 
-func (db_alias *DbConnection) OpenNew() (*sql.DB, error) {
-	db_conn, err := sql.Open("postgres", db_alias.CreatePostgresConnectionString())
-
-	if err != nil {
+func (dbAlias *DbConnection) OpenNew() (*sql.DB, error) {
+	if dbConn, err := sql.Open("postgres", dbAlias.CreatePostgresConnectionString()); err != nil {
 		return nil, err
+	} else {
+		return dbConn, nil
 	}
-
-	return db_conn, nil
 }
 
-func (db_alias *DbConnection) Open() (*sql.DB, error) {
-	if db_alias.Connection == nil {
-		new_conn, err := db_alias.OpenNew()
-		if err != nil {
+func (dbAlias *DbConnection) Open() (*sql.DB, error) {
+	if dbAlias.Connection == nil {
+		if new_conn, err := dbAlias.OpenNew(); err != nil {
 			return nil, err
 		} else {
-			db_alias.Connection = new_conn
+			dbAlias.Connection = new_conn
 		}
 	}
-	return db_alias.Connection, nil
+	return dbAlias.Connection, nil
 }
 
-func (db_alias *DbConnection) Exec(statement string, args ...interface{}) error {
-	return db_alias.ExecInTransaction(statement, nil, args...)
+func (dbAlias *DbConnection) Exec(statement string, args ...interface{}) error {
+	return dbAlias.ExecInTransaction(statement, nil, args...)
 }
 
-func (db_alias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, args ...interface{}) error {
-	stmt, stmt_err := db_alias.Prepare(statement, tx)
+func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, args ...interface{}) error {
+	stmt, stmt_err := dbAlias.Prepare(statement, tx)
 
 	if stmt_err != nil {
 		return stmt_err
@@ -598,14 +590,14 @@ func (db_alias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, ar
 	return nil
 }
 
-func (db_alias *DbConnection) Query(statement string, args ...interface{}) *queryResult {
-	return db_alias.QueryInTransaction(statement, nil, args...)
+func (dbAlias *DbConnection) Query(statement string, args ...interface{}) *queryResult {
+	return dbAlias.QueryInTransaction(statement, nil, args...)
 }
 
-func (db_alias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, args ...interface{}) *queryResult {
+func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, args ...interface{}) *queryResult {
 	result := queryResult{}
 
-	stmt, stmt_err := db_alias.Prepare(statement, tx)
+	stmt, stmt_err := dbAlias.Prepare(statement, tx)
 	if stmt_err != nil {
 		result.Error = stmt_err
 		return &result
@@ -622,13 +614,13 @@ func (db_alias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, a
 	return &result
 }
 
-func (db_alias DbConnection) GetById(object DatabaseMapped, ids ...interface{}) error {
-	return db_alias.GetByIdInTransaction(object, nil, ids...)
+func (dbAlias *DbConnection) GetById(object DatabaseMapped, ids ...interface{}) error {
+	return dbAlias.GetByIdInTransaction(object, nil, ids...)
 }
 
-func (db_alias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql.Tx, ids ...interface{}) error {
+func (dbAlias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql.Tx, ids ...interface{}) error {
 	if ids == nil {
-		errors.New("invalid `ids` parameter.")
+		return errors.New("invalid `ids` parameter.")
 	}
 
 	meta := getColumns(object)
@@ -644,7 +636,7 @@ func (db_alias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sq
 	where_clause := makeWhereClause(pks, 1)
 	query_body := fmt.Sprintf("SELECT %s FROM %s %s", strings.Join(column_names, ","), table_name, where_clause)
 
-	stmt, stmt_err := db_alias.Prepare(query_body, tx)
+	stmt, stmt_err := dbAlias.Prepare(query_body, tx)
 	if stmt_err != nil {
 		return stmt_err
 	}
@@ -667,11 +659,11 @@ func (db_alias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sq
 	return nil
 }
 
-func (db_alias *DbConnection) GetAll(collection interface{}) error {
-	return db_alias.GetAllInTransaction(collection, nil)
+func (dbAlias *DbConnection) GetAll(collection interface{}) error {
+	return dbAlias.GetAllInTransaction(collection, nil)
 }
 
-func (db_alias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx) error {
+func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx) error {
 	collection_value := reflectValue(collection)
 	t := reflectSliceType(collection)
 	table_name := tableName(t)
@@ -681,7 +673,7 @@ func (db_alias *DbConnection) GetAllInTransaction(collection interface{}, tx *sq
 
 	sql_stmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(column_names, ","), table_name)
 
-	stmt, statment_err := db_alias.Prepare(sql_stmt, tx)
+	stmt, statment_err := dbAlias.Prepare(sql_stmt, tx)
 	if statment_err != nil {
 		return statment_err
 	}
@@ -700,9 +692,6 @@ func (db_alias *DbConnection) GetAllInTransaction(collection interface{}, tx *sq
 		if pop_err != nil {
 			return pop_err
 		}
-		//USE THE REFLECT LUKE.
-		//collection = append(collection, new_obj)
-
 		new_obj_value := reflectValue(new_obj)
 		collection_value.Set(reflect.Append(collection_value, new_obj_value))
 	}
@@ -710,11 +699,11 @@ func (db_alias *DbConnection) GetAllInTransaction(collection interface{}, tx *sq
 	return nil
 }
 
-func (db_alias *DbConnection) Create(object DatabaseMapped) error {
-	return db_alias.CreateInTransaction(object, nil)
+func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
+	return dbAlias.CreateInTransaction(object, nil)
 }
 
-func (db_alias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
+func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
 	cols := getColumns(object)
 	write_cols := cols.NotReadonly().NotSerials()
 	//NOTE: we're only using one.
@@ -743,7 +732,7 @@ func (db_alias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql
 		)
 	}
 
-	stmt, stmt_err := db_alias.Prepare(sql_stmt, tx)
+	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
 	if stmt_err != nil {
 		return stmt_err
 	}
@@ -771,11 +760,11 @@ func (db_alias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql
 	return nil
 }
 
-func (db_alias *DbConnection) Update(object DatabaseMapped) error {
-	return db_alias.UpdateInTransaction(object, nil)
+func (dbAlias *DbConnection) Update(object DatabaseMapped) error {
+	return dbAlias.UpdateInTransaction(object, nil)
 }
 
-func (db_alias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
+func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
 	table_name := object.TableName()
 
 	cols := getColumns(object)
@@ -799,7 +788,7 @@ func (db_alias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql
 
 	sql_stmt = sql_stmt + where_clause
 
-	stmt, stmt_err := db_alias.Prepare(sql_stmt, tx)
+	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
 	if stmt_err != nil {
 		return stmt_err
 	}
@@ -813,11 +802,11 @@ func (db_alias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql
 	return nil
 }
 
-func (db_alias *DbConnection) Exists(object DatabaseMapped) (bool, error) {
-	return db_alias.ExistsInTransaction(object, nil)
+func (dbAlias *DbConnection) Exists(object DatabaseMapped) (bool, error) {
+	return dbAlias.ExistsInTransaction(object, nil)
 }
 
-func (db_alias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.Tx) (bool, error) {
+func (dbAlias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.Tx) (bool, error) {
 	table_name := object.TableName()
 	cols := getColumns(object)
 	pks := cols.PrimaryKeys()
@@ -827,7 +816,7 @@ func (db_alias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql
 	}
 	where_clause := makeWhereClause(pks, 1)
 	sql_stmt := fmt.Sprintf("SELECT 1 FROM %s %s", table_name, where_clause)
-	stmt, stmt_err := db_alias.Prepare(sql_stmt, tx)
+	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
 	if stmt_err != nil {
 		return false, stmt_err
 	}
@@ -843,11 +832,11 @@ func (db_alias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql
 	return exists, nil
 }
 
-func (db_alias *DbConnection) Delete(object DatabaseMapped) error {
-	return db_alias.DeleteInTransaction(object, nil)
+func (dbAlias *DbConnection) Delete(object DatabaseMapped) error {
+	return dbAlias.DeleteInTransaction(object, nil)
 }
 
-func (db_alias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.Tx) error {
+func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.Tx) error {
 	table_name := object.TableName()
 	cols := getColumns(object)
 	pks := cols.PrimaryKeys()
@@ -859,7 +848,7 @@ func (db_alias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql
 	where_clause := makeWhereClause(pks, 1)
 	sql_stmt := fmt.Sprintf("DELETE FROM %s %s", table_name, where_clause)
 
-	stmt, stmt_err := db_alias.Prepare(sql_stmt, tx)
+	stmt, stmt_err := dbAlias.Prepare(sql_stmt, tx)
 	if stmt_err != nil {
 		return stmt_err
 	}
@@ -1101,13 +1090,4 @@ func readFieldTag(field reflect.StructField) *column {
 	}
 
 	return nil
-}
-
-func jsonSerialize(object interface{}) string {
-	b, _ := json.Marshal(object)
-	return string(b)
-}
-
-func jsonDeserialize(object interface{}, body string) error {
-	return json.Unmarshal([]byte(body), &object)
 }
