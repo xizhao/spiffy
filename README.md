@@ -41,8 +41,8 @@ We can manage connections (and save a default so it doesn't need to be passed ar
 
 *Example:*
 ```golang
-orm.CreateDbAlias("main", orm.NewDBConnection("localhost", "my_db", "postgres", "super_secret_pw"))
-orm.SetDefaultAlias("main")
+spiffy.CreateDbAlias("main", spiffy.NewDBConnection("localhost", "my_db", "postgres", "super_secret_pw"))
+spiffy.SetDefaultAlias("main")
 ```
 
 The above snipped creates a connection, and then saves it as the "main" alias. We then set that alias to be the default. This lets us then call `DefaultDb()` to retrieve this connection. Alternatively we could spin up a db alias and pass it around as pointer, but this get's tricky and it's easier just to save it to the "Aliases" collection.
@@ -57,25 +57,25 @@ Simple execute operations can be done with `Exec` or `ExecInTransaction` functio
 
 *Example:*
 ```golang
-exec_err := orm.DefaultDb().Exec("delete from my_table where id = $1", obj_id)
+exec_err := spiffy.DefaultDb().Exec("delete from my_table where id = $1", obj_id)
 ```
 
 When we need to pass parameters to the queries, use `$1` numbered tokens to denote the parameter in the sql. We then need to pass that parameter as an argument to `Exec` in the order that maps to the numbered token.
 
 ## Querying ###
 
-Querying in Spiffy can be done with the `Query` or `QueryInTransaction` functions. takes SQL as it's main parameter. That's it, no complicated DSL's for replacing sql, just write it yourself. 
+Querying in Spiffy can be done with the `Query` or `QueryInTransaction` functions. Each takes SQL as it's main parameter. That's it, no complicated DSL's for replacing sql, just write it yourself. 
 
 *Struct Output Example*
 ```golang
 obj := MyObject{}
-query_err := orm.DefaultDb().Query("select * from my_table where id = $1", obj_id).Out(&obj)
+query_err := spiffy.DefaultDb().Query("select * from my_table where id = $1", obj_id).Out(&obj)
 ```
 
 *Slice Ouptut Example:*
 ```golang
 objs := []MyObject{}
-query_err := orm.DefaultDb().Query("select * from my_table").OutMany(&objs)
+query_err := spiffy.DefaultDb().Query("select * from my_table").OutMany(&objs)
 ```
 
 In order to query the database, we need a query and a target for the output. The output can be a single struct, or a slice of structs. Which we're using determines if we use `Out` or `OutMany`. Like `Exec`, when we need to pass parameters to the queries, use `$1` numbered tokens to denote the parameter in the sql. We then need to pass that parameter as an argument to `Query` in the order that maps to the numbered token.
@@ -88,7 +88,7 @@ You can perform the following CrUD operations:
 *Example:*
 ```golang
 obj := MyObj{}
-create_err := orm.DefaultDb().Create(&obj) //note the reference! this is incase we have to write back a serial id.
+create_err := spiffy.DefaultDb().Create(&obj) //note the reference! this is incase we have to write back a serial id.
 ```
 
 - `Update` or `UpdateInTransaction` : update objects
@@ -96,9 +96,9 @@ create_err := orm.DefaultDb().Create(&obj) //note the reference! this is incase 
 *Example:*
 ```golang
 obj := MyObj{}
-get_err := orm.DefaultDb().GetById(&obj, obj_id) //note, there can be multiple params (!!) if there are multiple pks
+get_err := spiffy.DefaultDb().GetById(&obj, obj_id) //note, there can be multiple params (!!) if there are multiple pks
 obj.Property = "new_value"
-upd_err := orm.DefaultDb().Update(obj) //note we don't need a reference for this, as it's read only.
+upd_err := spiffy.DefaultDb().Update(obj) //note we don't need a reference for this, as it's read only.
 ```
 
 - `Delete` or `DeleteInTransaction` : delete objects
@@ -106,8 +106,8 @@ upd_err := orm.DefaultDb().Update(obj) //note we don't need a reference for this
 *Example:*
 ```golang
 obj := MyObj{}
-get_err := orm.DefaultDb().GetById(&obj, obj_id) //note, there can be multiple params (!!) if there are multiple pks
-del_err := orm.DefaultDb().Delete(obj) //note we don't need a reference for this, as it's read only.
+get_err := spiffy.DefaultDb().GetById(&obj, obj_id) //note, there can be multiple params (!!) if there are multiple pks
+del_err := spiffy.DefaultDb().Delete(obj) //note we don't need a reference for this, as it's read only.
 ```
 
 # Transactions #
@@ -118,21 +118,21 @@ If, in a test, you need to use a transaction in a context that may not be aware 
 
 *Example:*
 ```golang
-db, db_err := orm.DefaultDb().Open() //opens a db connection
+db, db_err := spiffy.DefaultDb().Open() //opens a db connection
 tx, tx_err := db.Begin() //starts a transaction
-orm.DefaultDb().IsolateToTransaction(tx)
+spiffy.DefaultDb().IsolateToTransaction(tx)
 
 //... work in transaction here ...
 
 tx.Rollback() //or tx.Commit()
-orm.DefaultDb().ReleaseIsolation()
+spiffy.DefaultDb().ReleaseIsolation()
 ```
 
-This snippet leverages a couple things; one is `db.Begin()` which starts a transaction. Then, critically, the call to `orm.DefaultDb().IsolateTransaction(tx)` sets the transaction as the default for *any* uses of that db connection. The call to `orm.DefaultDb().ReleaseIsolation()` returns things to normal.
+This snippet leverages a couple things; one is `db.Begin()` which starts a transaction. Then, critically, the call to `spiffy.DefaultDb().IsolateTransaction(tx)` sets the transaction as the default for *any* uses of that db connection. The call to `spiffy.DefaultDb().ReleaseIsolation()` returns things to normal.
 
 # Performance #
 
-Generally it's pretty good. There is a comparison test in `orm_test.go` if you want to see for yourself. It creates 5000 objects with 5 properties each, then reads them out using the orm or manual scanning.
+Generally it's pretty good. There is a comparison test in `spiffy_test.go` if you want to see for yourself. It creates 5000 objects with 5 properties each, then reads them out using the orm or manual scanning.
 
 The results were:
 
