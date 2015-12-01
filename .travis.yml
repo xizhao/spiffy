@@ -2,4 +2,4 @@ language: go
 sudo: false
 
 script: 
-	- go test
+    - go test
