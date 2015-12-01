@@ -208,7 +208,7 @@ type columnCollection struct {
 	Lookup  map[string]*column
 }
 
-func newcolumnCollection(columns []column) columnCollection {
+func newColumnCollection(columns []column) columnCollection {
 	cc := columnCollection{Columns: columns}
 	lookup := make(map[string]*column)
 	for i := 0; i < len(columns); i++ {
@@ -227,7 +227,7 @@ func (cc columnCollection) PrimaryKeys() columnCollection {
 			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 //things we can update
@@ -238,7 +238,7 @@ func (cc columnCollection) NotPrimaryKeys() columnCollection {
 			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 //things we have to return the id of ...
@@ -249,7 +249,7 @@ func (cc columnCollection) Serials() columnCollection {
 			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 //things we don't have to return the id of ...
@@ -260,7 +260,7 @@ func (cc columnCollection) NotSerials() columnCollection {
 			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 //a.k.a. not things we insert
@@ -271,7 +271,7 @@ func (cc columnCollection) ReadOnly() columnCollection {
 			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 func (cc columnCollection) NotReadonly() columnCollection {
@@ -281,7 +281,7 @@ func (cc columnCollection) NotReadonly() columnCollection {
 			cols = append(cols, c)
 		}
 	}
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 func (cc columnCollection) ColumnNames() []string {
@@ -322,7 +322,7 @@ func (cc columnCollection) ConcatWith(other columnCollection) columnCollection {
 	var total []column
 	total = append(total, cc.Columns...)
 	total = append(total, other.Columns...)
-	return newcolumnCollection(total)
+	return newColumnCollection(total)
 }
 
 // --------------------------------------------------------------------------------
@@ -1024,7 +1024,7 @@ func createColumnsByType(t reflect.Type) columnCollection {
 		}
 	}
 
-	return newcolumnCollection(cols)
+	return newColumnCollection(cols)
 }
 
 // reads the contents of a field tag, ex: `json:"foo" db:"bar,isprimarykey,isserial"

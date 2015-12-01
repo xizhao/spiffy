@@ -2,6 +2,7 @@ package spiffy
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -380,6 +381,10 @@ func (m myStruct) TableName() string {
 func TestGetColumns(t *testing.T) {
 	a := assert.New(t)
 
+	emptyColumnCollection := columnCollection{}
+	firstOrDefaultNil := emptyColumnCollection.FirstOrDefault()
+	a.Nil(firstOrDefaultNil)
+
 	obj := myStruct{}
 	meta := getColumns(obj)
 
@@ -387,6 +392,12 @@ func TestGetColumns(t *testing.T) {
 	a.NotEmpty(meta.Columns)
 
 	a.Equal(4, len(meta.Columns))
+
+	readOnlyColumns := meta.ReadOnly()
+	a.Len(readOnlyColumns.Columns, 1)
+
+	firstOrDefault := meta.FirstOrDefault()
+	a.NotNil(firstOrDefault)
 
 	firstCol := meta.Columns[0]
 	a.Equal("my_struct", firstCol.TableName)
@@ -431,6 +442,17 @@ func TestSetValue(t *testing.T) {
 	a.Equal(10, obj.PrimaryKeyCol)
 }
 
+func TestGetValue(t *testing.T) {
+	a := assert.New(t)
+	obj := myStruct{PrimaryKeyCol: 5, InferredName: "Hello."}
+
+	meta := getColumns(obj)
+	pk := meta.PrimaryKeys().Columns[0]
+	value := pk.GetValue(&obj)
+	a.NotNil(value)
+	a.Equal(5, value)
+}
+
 func TestMakeCsvTokens(t *testing.T) {
 	a := assert.New(t)
 
@@ -461,4 +483,37 @@ func TestMakeSliceOfType(t *testing.T) {
 	all_err := DefaultDb().GetAllInTransaction(slice_of_t, tx)
 	a.Nil(all_err)
 	a.NotEmpty(*slice_of_t)
+}
+
+func TestDbConnectionOpen(t *testing.T) {
+	a := assert.New(t)
+
+	testAlias := dbConnectionFromEnvironment()
+	db, dbErr := testAlias.Open()
+	a.Nil(dbErr)
+	a.NotNil(db)
+	defer db.Close()
+}
+
+func TestExec(t *testing.T) {
+	a := assert.New(t)
+	tx, txErr := DefaultDb().Begin()
+	a.Nil(txErr)
+	defer func() {
+		a.Nil(tx.Rollback())
+	}()
+
+	execErr := DefaultDb().ExecInTransaction("select 'ok!'", tx)
+	a.Nil(execErr)
+}
+
+func TestCombineErrors(t *testing.T) {
+	a := assert.New(t)
+
+	error1 := errors.New("This is the first error.")
+	error2 := errors.New("This is the second error.")
+
+	combinedError := combineErrors(error1, error2)
+	a.NotNil(combinedError)
+	a.NotEmpty(combinedError.Error())
 }
