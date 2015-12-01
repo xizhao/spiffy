@@ -6,6 +6,8 @@ services:
 
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres
+  - go get -u github.com/lib/pq
+  - go get -u github.com/blendlabs/go-assert
 
 script: 
   - DB_SCHEMA=travis_ci_test go test
