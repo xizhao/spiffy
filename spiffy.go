@@ -6,13 +6,13 @@ package spiffy
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/blendlabs/go-exception"
 	_ "github.com/lib/pq"
 )
 
@@ -157,7 +157,7 @@ func (c column) SetValue(object DatabaseMapped, value interface{}) error {
 					fieldAddr := field.Addr().Interface()
 					jsonErr := json.Unmarshal([]byte(valueAsString), fieldAddr)
 					if jsonErr != nil {
-						return jsonErr
+						return exception.Wrap(jsonErr)
 					}
 					field.Set(reflect.ValueOf(fieldAddr).Elem())
 				}
@@ -188,7 +188,7 @@ func (c column) SetValue(object DatabaseMapped, value interface{}) error {
 			}
 		}
 	} else {
-		return errors.New("hit a field we can't set: '" + c.FieldName + "', did you forget to pass the object as a reference?")
+		return exception.New("hit a field we can't set: '" + c.FieldName + "', did you forget to pass the object as a reference?")
 	}
 	return nil
 }
@@ -338,16 +338,16 @@ type queryResult struct {
 func (q *queryResult) cleanup() error {
 	if q.Rows != nil {
 		if closeErr := q.Rows.Close(); closeErr != nil {
-			return combineErrors(closeErr, q.Error)
+			return exception.WrapMany(q.Error, closeErr)
 		}
 	}
 	if q.Stmt != nil {
 		if closeErr := q.Stmt.Close(); closeErr != nil {
-			return combineErrors(closeErr, q.Error)
+			return exception.WrapMany(q.Error, closeErr)
 		}
 	}
 
-	return q.Error
+	return exception.Wrap(q.Error)
 }
 
 func (q *queryResult) Scan(args ...interface{}) error {
@@ -364,7 +364,6 @@ func (q *queryResult) Scan(args ...interface{}) error {
 	}
 
 	q.Error = q.Rows.Err()
-
 	return q.cleanup()
 }
 
@@ -384,7 +383,6 @@ func (q *queryResult) Out(object DatabaseMapped) error {
 	}
 
 	q.Error = q.Rows.Err()
-
 	return q.cleanup()
 }
 
@@ -411,12 +409,10 @@ func (q *queryResult) OutMany(collection interface{}) error {
 		didSetRows = true
 	}
 
-	q.Error = q.Rows.Err()
-
 	if !didSetRows {
 		collectionValue.Set(reflect.MakeSlice(sliceType, 0, 0))
 	}
-
+	q.Error = q.Rows.Err()
 	return q.cleanup()
 }
 
@@ -460,20 +456,22 @@ func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
 // Starts a new transaction.
 func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	if dbAlias == nil {
-		return nil, errors.New("`dbAlias` is uninitialized, cannot continue.")
+		return nil, exception.New("`dbAlias` is uninitialized, cannot continue.")
 	}
 
 	if dbAlias.Tx != nil {
 		return dbAlias.Tx, nil
 	} else if dbAlias.Connection != nil {
-		return dbAlias.Connection.Begin()
+		tx, txErr := dbAlias.Connection.Begin()
+		return tx, exception.Wrap(txErr)
 	} else {
-		dbConn, openErr := dbAlias.OpenNew()
-		if openErr != nil {
-			return nil, openErr
+		dbConn, dbConnErr := dbAlias.OpenNew()
+		if dbConnErr != nil {
+			return nil, exception.Wrap(dbConnErr)
 		}
 		dbAlias.Connection = dbConn
-		return dbAlias.Connection.Begin()
+		tx, txErr := dbAlias.Connection.Begin()
+		return tx, exception.Wrap(txErr)
 	}
 }
 
@@ -481,20 +479,20 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error {
 	tx, err := dbAlias.Begin()
 	if err != nil {
-		return err
+		return exception.Wrap(err)
 	}
 	err = action(tx)
 	if dbAlias.IsIsolatedToTransaction() {
-		return err
+		return exception.Wrap(err)
 	}
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return combineErrors(rollbackErr, err)
+			return exception.WrapMany(rollbackErr, err)
 		} else {
-			return err
+			return exception.Wrap(err)
 		}
 	} else if commitErr := tx.Commit(); commitErr != nil {
-		return commitErr
+		return exception.Wrap(commitErr)
 	}
 	return nil
 }
@@ -503,26 +501,33 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
 	if tx == nil {
 		if dbAlias == nil {
-			return nil, errors.New("dbAlias is nil")
+			return nil, exception.New("dbAlias is nil at Prepare()")
 		}
 
 		if dbAlias.Tx != nil {
-			return dbAlias.Tx.Prepare(statement)
+			stmt, stmtErr := dbAlias.Tx.Prepare(statement)
+			return stmt, exception.Wrap(stmtErr)
 		} else {
 			if dbConn, dbErr := dbAlias.Open(); dbErr != nil {
-				return nil, dbErr
+				return nil, exception.Wrap(dbErr)
 			} else {
-				return dbConn.Prepare(statement)
+				stmt, stmtErr := dbConn.Prepare(statement)
+				return stmt, exception.Wrap(stmtErr)
 			}
 		}
 	} else {
-		return tx.Prepare(statement)
+		if stmt, stmtErr := tx.Prepare(statement); stmtErr != nil {
+			return stmt, exception.WrapError(stmtErr)
+		} else {
+			return stmt, nil
+		}
+
 	}
 }
 
 func (dbAlias *DbConnection) OpenNew() (*sql.DB, error) {
 	if dbConn, err := sql.Open("postgres", dbAlias.CreatePostgresConnectionString()); err != nil {
-		return nil, err
+		return nil, exception.Wrap(err)
 	} else {
 		return dbConn, nil
 	}
@@ -531,7 +536,7 @@ func (dbAlias *DbConnection) OpenNew() (*sql.DB, error) {
 func (dbAlias *DbConnection) Open() (*sql.DB, error) {
 	if dbAlias.Connection == nil {
 		if newConn, err := dbAlias.OpenNew(); err != nil {
-			return nil, err
+			return nil, exception.Wrap(err)
 		} else {
 			dbAlias.Connection = newConn
 		}
@@ -545,14 +550,13 @@ func (dbAlias *DbConnection) Exec(statement string, args ...interface{}) error {
 
 func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, args ...interface{}) error {
 	stmt, stmtErr := dbAlias.Prepare(statement, tx)
-
 	if stmtErr != nil {
-		return stmtErr
+		return exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 
 	if _, execErr := stmt.Exec(args...); execErr != nil {
-		return execErr
+		return exception.Wrap(execErr)
 	}
 
 	return nil
@@ -567,16 +571,16 @@ func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, ar
 
 	stmt, stmtErr := dbAlias.Prepare(statement, tx)
 	if stmtErr != nil {
-		result.Error = stmtErr
+		result.Error = exception.Wrap(stmtErr)
 		return &result
 	}
 
 	rows, queryErr := stmt.Query(args...)
 	if queryErr != nil {
 		if closeErr := stmt.Close(); closeErr != nil {
-			result.Error = combineErrors(closeErr, queryErr)
+			result.Error = exception.WrapMany(closeErr, queryErr)
 		} else {
-			result.Error = queryErr
+			result.Error = exception.Wrap(queryErr)
 		}
 		return &result
 	}
@@ -591,7 +595,7 @@ func (dbAlias *DbConnection) GetById(object DatabaseMapped, ids ...interface{}) 
 
 func (dbAlias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql.Tx, ids ...interface{}) error {
 	if ids == nil {
-		return errors.New("invalid `ids` parameter.")
+		return exception.New("invalid `ids` parameter.")
 	}
 
 	meta := getColumns(object)
@@ -601,31 +605,31 @@ func (dbAlias *DbConnection) GetByIdInTransaction(object DatabaseMapped, tx *sql
 	pks := standardCols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
-		return errors.New("no primary key on object to get by.")
+		return exception.New("no primary key on object to get by.")
 	}
 
 	queryBody := fmt.Sprintf("SELECT %s FROM %s %s", strings.Join(columnNames, ","), tableName, makeWhereClause(pks, 1))
 
 	stmt, stmtErr := dbAlias.Prepare(queryBody, tx)
 	if stmtErr != nil {
-		return stmtErr
+		return exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 
 	rows, queryErr := stmt.Query(ids...)
 	if queryErr != nil {
-		return queryErr
+		return exception.Wrap(queryErr)
 	}
 
 	defer rows.Close()
 
 	for rows.Next() {
 		if popErr := populateInOrder(object, rows, standardCols); popErr != nil {
-			return popErr
+			return exception.Wrap(popErr)
 		}
 	}
 
-	return rows.Err()
+	return exception.Wrap(rows.Err())
 }
 
 func (dbAlias *DbConnection) GetAll(collection interface{}) error {
@@ -644,13 +648,13 @@ func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql
 
 	stmt, statment_err := dbAlias.Prepare(sqlStmt, tx)
 	if statment_err != nil {
-		return statment_err
+		return exception.Wrap(statment_err)
 	}
 	defer stmt.Close()
 
 	rows, queryErr := stmt.Query()
 	if queryErr != nil {
-		return queryErr
+		return exception.Wrap(queryErr)
 	}
 
 	defer rows.Close()
@@ -659,13 +663,13 @@ func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql
 		new_obj := makeNew(t)
 		pop_err := populateInOrder(new_obj, rows, meta)
 		if pop_err != nil {
-			return pop_err
+			return exception.Wrap(pop_err)
 		}
 		new_obj_value := reflectValue(new_obj)
 		collection_value.Set(reflect.Append(collection_value, new_obj_value))
 	}
 
-	return rows.Err()
+	return exception.Wrap(rows.Err())
 }
 
 func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
@@ -675,6 +679,7 @@ func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
 func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
 	cols := getColumns(object)
 	writeCols := cols.NotReadonly().NotSerials()
+
 	//NOTE: we're only using one.
 	serials := cols.Serials()
 	tableName := object.TableName()
@@ -703,7 +708,7 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return stmtErr
+		return exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 
@@ -718,11 +723,11 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 		var id interface{}
 		execErr := stmt.QueryRow(colValues...).Scan(&id)
 		if execErr != nil {
-			return execErr
+			return exception.Wrap(execErr)
 		}
 		setErr := serial.SetValue(object, id)
 		if setErr != nil {
-			return setErr
+			return exception.Wrap(setErr)
 		}
 	}
 
@@ -759,13 +764,13 @@ func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return stmtErr
+		return exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 	_, err := stmt.Exec(totalValues...)
 
 	if err != nil {
-		return err
+		return exception.Wrap(err)
 	}
 
 	return nil
@@ -781,20 +786,20 @@ func (dbAlias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.
 	pks := cols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
-		return false, errors.New("No primary key on object.")
+		return false, exception.New("No primary key on object.")
 	}
 	whereClause := makeWhereClause(pks, 1)
 	sqlStmt := fmt.Sprintf("SELECT 1 FROM %s %s", tableName, whereClause)
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return false, stmtErr
+		return false, exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 	pkValues := pks.ColumnValues(object)
 	rows, queryErr := stmt.Query(pkValues...)
 	defer rows.Close()
 	if queryErr != nil {
-		return false, queryErr
+		return false, exception.Wrap(queryErr)
 	}
 
 	exists := rows.Next()
@@ -811,7 +816,7 @@ func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.
 	pks := cols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
-		return errors.New("No primary key on object.")
+		return exception.New("No primary key on object.")
 	}
 
 	whereClause := makeWhereClause(pks, 1)
@@ -819,14 +824,14 @@ func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return stmtErr
+		return exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 
 	pkValues := pks.ColumnValues(object)
 
 	_, err := stmt.Exec(pkValues...)
-	return err
+	return exception.Wrap(err)
 }
 
 // --------------------------------------------------------------------------------
@@ -903,7 +908,7 @@ func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection)
 	rowColumns, rowColumnsErr := row.Columns()
 
 	if rowColumnsErr != nil {
-		return rowColumnsErr
+		return exception.Wrap(rowColumnsErr)
 	}
 
 	var values = make([]interface{}, len(rowColumns))
@@ -925,7 +930,7 @@ func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection)
 	scanErr := row.Scan(values...)
 
 	if scanErr != nil {
-		return scanErr
+		return exception.Wrap(scanErr)
 	}
 
 	for i, v := range values {
@@ -934,7 +939,7 @@ func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection)
 		if field, ok := cols.Lookup[colName]; ok {
 			err := field.SetValue(object, v)
 			if err != nil {
-				return err
+				return exception.Wrap(err)
 			}
 		}
 	}
@@ -971,14 +976,14 @@ func populateInOrder(object DatabaseMapped, row *sql.Rows, cols columnCollection
 	scanErr := row.Scan(values...)
 
 	if scanErr != nil {
-		return scanErr
+		return exception.Wrap(scanErr)
 	}
 
 	for i, v := range values {
 		field := cols.Columns[i]
 		err := field.SetValue(object, v)
 		if err != nil {
-			return err
+			return exception.Wrap(err)
 		}
 	}
 
@@ -1055,16 +1060,4 @@ func readFieldTag(field reflect.StructField) *column {
 	}
 
 	return nil
-}
-
-func combineErrors(multipleErrors ...error) error {
-	errorStrings := []string{}
-	for i := 0; i < len(multipleErrors); i++ {
-		e := multipleErrors[i]
-		if e != nil {
-			errorStrings = append(errorStrings, fmt.Sprintf("%v", e))
-		}
-	}
-	errorBody := fmt.Sprintf("multiple errors:\n%s", strings.Join(errorStrings, "\n\t"))
-	return errors.New(errorBody)
 }

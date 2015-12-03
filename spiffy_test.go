@@ -2,13 +2,13 @@ package spiffy
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/blendlabs/go-assert"
+	"github.com/blendlabs/go-exception"
 )
 
 //------------------------------------------------------------------------------------------------
@@ -81,12 +81,7 @@ func (b BenchObj) TableName() string {
 
 func createTable(tx *sql.Tx) error {
 	createSql := `CREATE TABLE bench_object (id serial not null, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
-	createStmt, createStmtErr := DefaultDb().Prepare(createSql, tx)
-	if createStmtErr != nil {
-		return createStmtErr
-	}
-	_, execErr := createStmt.Exec()
-	return execErr
+	return DefaultDb().ExecInTransaction(createSql, tx)
 }
 
 func createObject(index int, tx *sql.Tx) error {
@@ -96,20 +91,19 @@ func createObject(index int, tx *sql.Tx) error {
 	obj.Amount = 1000.0 + (5.0 * float32(index))
 	obj.Pending = index%2 == 0
 	obj.Category = fmt.Sprintf("category_%d", index)
-	return DefaultDb().CreateInTransaction(&obj, tx)
+	return exception.Wrap(DefaultDb().CreateInTransaction(&obj, tx))
 }
 
 func seedObjects(count int, tx *sql.Tx) error {
 	createTableErr := createTable(tx)
-
 	if createTableErr != nil {
-		return createTableErr
+		return exception.Wrap(createTableErr)
 	}
 
 	for i := 0; i < count; i++ {
 		createObjErr := createObject(i, tx)
 		if createObjErr != nil {
-			return createObjErr
+			return exception.Wrap(createObjErr)
 		}
 	}
 	return nil
@@ -315,7 +309,7 @@ func TestQuery(t *testing.T) {
 	a.NotEqual(id, 0)
 }
 
-func TestCrUDMethods(t *testing.T) {
+func TestCRUDMethods(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
 	a.Nil(txErr)
@@ -505,15 +499,4 @@ func TestExec(t *testing.T) {
 
 	execErr := DefaultDb().ExecInTransaction("select 'ok!'", tx)
 	a.Nil(execErr)
-}
-
-func TestCombineErrors(t *testing.T) {
-	a := assert.New(t)
-
-	error1 := errors.New("This is the first error.")
-	error2 := errors.New("This is the second error.")
-
-	combinedError := combineErrors(error1, error2)
-	a.NotNil(combinedError)
-	a.NotEmpty(combinedError.Error())
 }
