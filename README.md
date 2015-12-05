@@ -1,4 +1,5 @@
-### Codename Spiffy ###
+Spiffy
+======
 
 [![Build Status](https://travis-ci.org/blendlabs/spiffy.svg?branch=master)](https://travis-ci.org/blendlabs/spiffy)
 
