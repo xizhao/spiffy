@@ -1,6 +1,13 @@
 language: go
 sudo: false
 
+notifications:
+  slack:
+    rooms:
+      - blend:wni8iXGkdYpw6JTIH0V8o4Fq#connectivity-devs
+    on_success: change
+    on_failure: always
+
 services:
   - postgresql
 
