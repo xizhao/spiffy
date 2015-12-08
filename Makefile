@@ -9,3 +9,8 @@ cover:
 	@go tool cover -html=cover_profile.tmp
 	@rm cover_profile.tmp
 	@echo "$(OK_COLOR)Spiffy ==> Running Coverage Done!$(NO_COLOR)"
+
+bench:
+	@echo "$(OK_COLOR)Spiffy ==> Running Benchmarks$(NO_COLOR)"
+	@go test -bench=.
+	@echo "$(OK_COLOR)Spiffy ==> Running Benchmarks Done!$(NO_COLOR)"
