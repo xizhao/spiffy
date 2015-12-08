@@ -144,3 +144,11 @@ The results were:
 |17.11ms  | 38.08ms  |
 
 This would be shabby in .net land, but for Go where we can't dynamically emit populate methods, and we're stuck doing in-order population or by name population, it's ok.
+
+If you implement `Populatable`, performance improves dramatically.
+
+| manual  |   orm (Populatable)    |
+|---------|------------------------|
+|14.33ms  | 16.95ms                |
+
+The strategy then is to impelement populate on your "hot read" objects, and let the orm figure out the other ones.
