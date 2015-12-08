@@ -8,7 +8,7 @@ notifications:
     on_success: always
     on_failure: always
     template:
-      - "*%{repository_slug}* %{message} %{duration}"
+      - "%{repository_slug} %{message} %{duration}"
       - "%{author} : (<%{compare_url}|%{commit}>) %{commit_message}"
       - "Build Details: %{build_url}"
 
