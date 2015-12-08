@@ -501,23 +501,29 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
 	if tx == nil {
 		if dbAlias == nil {
-			return nil, exception.New("dbAlias is nil at Prepare()")
+			return nil, exception.New("DbConnection is nil")
 		}
 
 		if dbAlias.Tx != nil {
-			stmt, stmtErr := dbAlias.Tx.Prepare(statement)
-			return stmt, exception.Wrap(stmtErr)
+			if stmt, stmtErr := dbAlias.Tx.Prepare(statement); stmtErr != nil {
+				return nil, exception.Newf("Postgres Error: %v", stmtErr)
+			} else {
+				return stmt, nil
+			}
 		} else {
 			if dbConn, dbErr := dbAlias.Open(); dbErr != nil {
-				return nil, exception.Wrap(dbErr)
+				return nil, exception.Newf("Postgres Error: %v", dbErr)
 			} else {
-				stmt, stmtErr := dbConn.Prepare(statement)
-				return stmt, exception.Wrap(stmtErr)
+				if stmt, stmtErr := dbConn.Prepare(statement); stmtErr != nil {
+					return nil, exception.Newf("Postgres Error: %v", stmtErr)
+				} else {
+					return stmt, nil
+				}
 			}
 		}
 	} else {
 		if stmt, stmtErr := tx.Prepare(statement); stmtErr != nil {
-			return stmt, exception.WrapError(stmtErr)
+			return nil, exception.Newf("Postgres Error: %v", stmtErr)
 		} else {
 			return stmt, nil
 		}
