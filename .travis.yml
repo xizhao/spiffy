@@ -8,8 +8,8 @@ notifications:
     on_success: always
     on_failure: always
     template:
-      - "${repository} (%{author}) : %{commit_message} %{result} in %{duration}"
-      - "Build Details: ${build_url}"
+      - "%{repository_slug} (%{author}) : %{commit_message} %{result} in %{duration}"
+      - "Build Details: %{build_url}"
 
 services:
   - postgresql
