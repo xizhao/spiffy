@@ -38,6 +38,11 @@ type DatabaseMapped interface {
 	TableName() string
 }
 
+/// Populatable is an interface that you can implement if your object is read often and is performance critical
+type Populatable interface {
+	Populate(rows *sql.Rows) error
+}
+
 // CreateDbAlias allows you to set up a connection for later use via an alias.
 //
 //	spiffy.CreateDbAlias("main", spiffy.NewDbConnection("localhost", "test_db", "", ""))
@@ -643,18 +648,18 @@ func (dbAlias *DbConnection) GetAll(collection interface{}) error {
 }
 
 func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx) error {
-	collection_value := reflectValue(collection)
+	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
 	tableName := tableName(t)
 	meta := getColumnsByType(t).NotReadonly()
 
-	column_names := meta.ColumnNames()
+	columnNames := meta.ColumnNames()
 
-	sqlStmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(column_names, ","), tableName)
+	sqlStmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(columnNames, ","), tableName)
 
-	stmt, statment_err := dbAlias.Prepare(sqlStmt, tx)
-	if statment_err != nil {
-		return exception.Wrap(statment_err)
+	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
+	if stmtErr != nil {
+		return exception.Wrap(stmtErr)
 	}
 	defer stmt.Close()
 
@@ -662,17 +667,16 @@ func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql
 	if queryErr != nil {
 		return exception.Wrap(queryErr)
 	}
-
 	defer rows.Close()
 
 	for rows.Next() {
-		new_obj := makeNew(t)
-		pop_err := populateInOrder(new_obj, rows, meta)
-		if pop_err != nil {
-			return exception.Wrap(pop_err)
+		newObj := makeNew(t)
+		popErr := populateInOrder(newObj, rows, meta)
+		if popErr != nil {
+			return exception.Wrap(popErr)
 		}
-		new_obj_value := reflectValue(new_obj)
-		collection_value.Set(reflect.Append(collection_value, new_obj_value))
+		newObjValue := reflectValue(newObj)
+		collectionValue.Set(reflect.Append(collectionValue, newObjValue))
 	}
 
 	return exception.Wrap(rows.Err())
@@ -911,6 +915,10 @@ func populate(object DatabaseMapped, row *sql.Rows) error {
 }
 
 func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection) error {
+	if populatable, isPopulatable := object.(Populatable); isPopulatable {
+		return populatable.Populate(row)
+	}
+
 	rowColumns, rowColumnsErr := row.Columns()
 
 	if rowColumnsErr != nil {
@@ -954,6 +962,11 @@ func populateByName(object DatabaseMapped, row *sql.Rows, cols columnCollection)
 }
 
 func populateInOrder(object DatabaseMapped, row *sql.Rows, cols columnCollection) error {
+
+	if populatable, isPopulatable := object.(Populatable); isPopulatable {
+		return populatable.Populate(row)
+	}
+
 	var values = make([]interface{}, len(cols.Columns))
 
 	for i, col := range cols.Columns {
