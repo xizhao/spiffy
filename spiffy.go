@@ -110,6 +110,13 @@ func NewDbConnection(host, schema, username, password string) *DbConnection {
 	return conn
 }
 
+// Creates a new connection with SSLMode set to "disable"
+func NewDbConnectionFromDSN(dsn string) *DbConnection {
+	conn := &DbConnection{}
+	conn.DSN = dsn
+	return conn
+}
+
 // Creates a new connection with all available options (including SSLMode)
 func NewSSLDbConnection(host, schema, username, password, sslMode string) *DbConnection {
 	conn := &DbConnection{}
@@ -128,6 +135,7 @@ type DbConnection struct {
 	Username   string
 	Password   string
 	SSLMode    string
+	DSN        string
 	Connection *sql.DB
 	Tx         *sql.Tx
 }
@@ -427,6 +435,9 @@ func (q *queryResult) OutMany(collection interface{}) error {
 
 // Returns a sql connection string from a given set of DbConnection parameters
 func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
+	if len(dbAlias.DSN) != 0 {
+		return dbAlias.DSN
+	}
 	sslMode := "?sslmode=disable"
 	if dbAlias.SSLMode != "" {
 		sslMode = fmt.Sprintf("?sslmode=%s", dbAlias.SSLMode)
