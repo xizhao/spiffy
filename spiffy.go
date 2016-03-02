@@ -609,6 +609,30 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	}
 }
 
+// Rollback rolls a given transaction back handling cases where the connection is already isolated.
+func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
+	if dbAlias == nil {
+		return exception.New("`dbAlias` is uninitialized, cannot rollback.")
+	}
+
+	if dbAlias.Tx != nil {
+		return dbAlias.Tx.Rollback()
+	}
+	return tx.Rollback()
+}
+
+// Commit commits a given transaction handling cases where the connection is already isolated.'
+func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
+	if dbAlias == nil {
+		return exception.New("`dbAlias` is uninitialized, cannot commit.")
+	}
+
+	if dbAlias.Tx != nil {
+		return dbAlias.Tx.Commit()
+	}
+	return tx.Commit()
+}
+
 // WrapInTransaction performs the given action wrapped in a transaction. Will Commit() on success and Rollback() on a non-nil error returned.
 func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error {
 	tx, err := dbAlias.Begin()
