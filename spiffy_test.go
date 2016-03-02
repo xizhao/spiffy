@@ -500,3 +500,53 @@ func TestExec(t *testing.T) {
 	execErr := DefaultDb().ExecInTransaction("select 'ok!'", tx)
 	a.Nil(execErr)
 }
+
+func TestQueryResultAny(t *testing.T) {
+	a := assert.New(t)
+	tx, txErr := DefaultDb().Begin()
+	a.Nil(txErr)
+	defer tx.Rollback()
+
+	seedErr := seedObjects(10, tx)
+	a.Nil(seedErr)
+
+	var all []BenchObj
+	allErr := DefaultDb().GetAllInTransaction(&all, tx)
+	a.Nil(allErr)
+	a.NotEmpty(all)
+
+	obj := all[0]
+
+	exists, existsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, obj.ID).Any()
+	a.Nil(existsErr)
+	a.True(exists)
+
+	notExists, notExistsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, -1).Any()
+	a.Nil(notExistsErr)
+	a.False(notExists)
+}
+
+func TestQueryResultNone(t *testing.T) {
+	a := assert.New(t)
+	tx, txErr := DefaultDb().Begin()
+	a.Nil(txErr)
+	defer tx.Rollback()
+
+	seedErr := seedObjects(10, tx)
+	a.Nil(seedErr)
+
+	var all []BenchObj
+	allErr := DefaultDb().GetAllInTransaction(&all, tx)
+	a.Nil(allErr)
+	a.NotEmpty(all)
+
+	obj := all[0]
+
+	exists, existsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, obj.ID).None()
+	a.Nil(existsErr)
+	a.False(exists)
+
+	notExists, notExistsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, -1).None()
+	a.Nil(notExistsErr)
+	a.True(notExists)
+}

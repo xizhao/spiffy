@@ -453,6 +453,28 @@ func (q *QueryResult) Close() error {
 	return exception.Wrap(q.Error)
 }
 
+// Any returns if there are any results for the query.
+func (q *QueryResult) Any() (bool, error) {
+	if q.Error != nil {
+		return false, q.Close()
+	}
+	hasRows := q.Rows.Next()
+	q.Error = q.Rows.Err()
+
+	return hasRows, q.Close()
+}
+
+// None returns if there are no results for the query.
+func (q *QueryResult) None() (bool, error) {
+	if q.Error != nil {
+		return false, q.Close()
+	}
+	hasNoRows := !q.Rows.Next()
+	q.Error = q.Rows.Err()
+
+	return hasNoRows, q.Close()
+}
+
 // Scan writes the results to a given set of local variables.
 func (q *QueryResult) Scan(args ...interface{}) error {
 	if q.Error != nil {
