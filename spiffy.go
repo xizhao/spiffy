@@ -616,7 +616,7 @@ func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
 	}
 
 	if dbAlias.Tx != nil {
-		return dbAlias.Tx.Rollback()
+		return nil
 	}
 	return tx.Rollback()
 }
@@ -628,7 +628,7 @@ func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
 	}
 
 	if dbAlias.Tx != nil {
-		return dbAlias.Tx.Commit()
+		return nil
 	}
 	return tx.Commit()
 }
