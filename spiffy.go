@@ -888,7 +888,7 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 	if len(serials.Columns) == 0 {
 		_, execErr := stmt.Exec(colValues...)
 		if execErr != nil {
-			return execErr
+			return exception.Wrap(execErr)
 		}
 	} else {
 		serial := serials.Columns[0]
