@@ -45,6 +45,9 @@ type Populatable interface {
 	Populate(rows *sql.Rows) error
 }
 
+// RowsConsumer is the function signature that is called from within Each().
+type RowsConsumer func(r *sql.Rows) error
+
 // CreateDbAlias allows you to set up a connection for later use via an alias.
 //
 //	spiffy.CreateDbAlias("main", spiffy.NewDbConnection("localhost", "test_db", "", ""))
@@ -545,6 +548,24 @@ func (q *QueryResult) OutMany(collection interface{}) error {
 	if !didSetRows {
 		collectionValue.Set(reflect.MakeSlice(sliceType, 0, 0))
 	}
+	q.Error = q.Rows.Err()
+	return q.Close()
+}
+
+// Each writes the query results to a slice of objects.
+func (q *QueryResult) Each(consumer RowsConsumer) error {
+	if q.Error != nil {
+		return q.Close()
+	}
+
+	var err error
+	for q.Rows.Next() {
+		err = consumer(q.Rows)
+		if err != nil {
+			return err
+		}
+	}
+
 	q.Error = q.Rows.Err()
 	return q.Close()
 }
