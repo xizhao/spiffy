@@ -7,10 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/blendlabs/go-exception"
 
@@ -91,58 +93,6 @@ func DefaultDb() *DbConnection {
 		return dbAliases[defaultAlias]
 	}
 	return nil
-}
-
-// NewUnauthenticatedDbConnection creates a new DbConnection without Username or Password or SSLMode
-func NewUnauthenticatedDbConnection(host, schema string) *DbConnection {
-	conn := &DbConnection{}
-	conn.Host = host
-	conn.Schema = schema
-	conn.Username = ""
-	conn.Password = ""
-	conn.SSLMode = "disable"
-	return conn
-}
-
-// NewDbConnection creates a new connection with SSLMode set to "disable"
-func NewDbConnection(host, schema, username, password string) *DbConnection {
-	conn := &DbConnection{}
-	conn.Host = host
-	conn.Schema = schema
-	conn.Username = username
-	conn.Password = password
-	conn.SSLMode = "disable"
-	return conn
-}
-
-// NewDbConnectionFromDSN creates a new connection with SSLMode set to "disable"
-func NewDbConnectionFromDSN(dsn string) *DbConnection {
-	conn := &DbConnection{}
-	conn.DSN = dsn
-	return conn
-}
-
-// NewSSLDbConnection creates a new connection with all available options (including SSLMode)
-func NewSSLDbConnection(host, schema, username, password, sslMode string) *DbConnection {
-	conn := &DbConnection{}
-	conn.Host = host
-	conn.Schema = schema
-	conn.Username = username
-	conn.Password = password
-	conn.SSLMode = sslMode
-	return conn
-}
-
-// DbConnection is the basic wrapper for connection parameters and saves a reference to the created sql.Connection.
-type DbConnection struct {
-	Host       string
-	Schema     string
-	Username   string
-	Password   string
-	SSLMode    string
-	DSN        string
-	Connection *sql.DB
-	Tx         *sql.Tx
 }
 
 // --------------------------------------------------------------------------------
@@ -442,64 +392,85 @@ type QueryResult struct {
 
 // Close closes and releases any resources retained by the QueryResult.
 func (q *QueryResult) Close() error {
+	var rowsErr error
+	var stmtErr error
+
 	if q.Rows != nil {
-		if closeErr := q.Rows.Close(); closeErr != nil {
-			return exception.WrapMany(q.Error, closeErr)
-		}
+		rowsErr = q.Rows.Close()
+		q.Rows = nil
 	}
 	if q.Stmt != nil {
-		if closeErr := q.Stmt.Close(); closeErr != nil {
-			return exception.WrapMany(q.Error, closeErr)
-		}
+		stmtErr = q.Stmt.Close()
+		q.Stmt = nil
 	}
 
-	return exception.Wrap(q.Error)
+	return exception.WrapMany(q.Error, rowsErr, stmtErr)
 }
 
 // Any returns if there are any results for the query.
 func (q *QueryResult) Any() (bool, error) {
-	if q.Error != nil {
-		return false, q.Close()
-	}
-	hasRows := q.Rows.Next()
-	q.Error = q.Rows.Err()
+	defer func() {
+		if err := q.Close(); err != nil {
+			debug("close err:", err)
+		}
+	}()
 
-	return hasRows, q.Close()
+	if q.Error != nil {
+		return false, exception.Wrap(q.Error)
+	}
+
+	hasRows := q.Rows.Next()
+	return hasRows, exception.Wrap(q.Rows.Err())
 }
 
 // None returns if there are no results for the query.
 func (q *QueryResult) None() (bool, error) {
-	if q.Error != nil {
-		return false, q.Close()
-	}
-	hasNoRows := !q.Rows.Next()
-	q.Error = q.Rows.Err()
+	defer func() {
+		if err := q.Close(); err != nil {
+			debug("close err:", err)
+		}
+	}()
 
-	return hasNoRows, q.Close()
+	if q.Error != nil {
+		return false, exception.Wrap(q.Error)
+	}
+
+	hasNoRows := !q.Rows.Next()
+	return hasNoRows, exception.Wrap(q.Rows.Err())
 }
 
 // Scan writes the results to a given set of local variables.
 func (q *QueryResult) Scan(args ...interface{}) error {
+	defer func() {
+		if err := q.Close(); err != nil {
+			debug("close err:", err)
+		}
+	}()
+
 	if q.Error != nil {
-		return q.Close()
+		return exception.Wrap(q.Error)
 	}
 
 	if q.Rows.Next() {
 		err := q.Rows.Scan(args...)
 		if err != nil {
-			q.Error = err
-			return q.Close()
+			return exception.Wrap(err)
 		}
 	}
 
-	q.Error = q.Rows.Err()
-	return q.Close()
+	return exception.Wrap(q.Rows.Err())
 }
 
 // Out writes the query result to a single object via. reflection mapping.
 func (q *QueryResult) Out(object DatabaseMapped) error {
+	defer func() {
+		if err := q.Close(); err != nil {
+			debug("close err:", err)
+		}
+	}()
+
 	if q.Error != nil {
-		return q.Close()
+		return q.Error
 	}
 
 	meta := NewColumnCollectionFromInstance(object)
@@ -507,25 +478,28 @@ func (q *QueryResult) Out(object DatabaseMapped) error {
 	if q.Rows.Next() {
 		popErr := PopulateByName(object, q.Rows, meta)
 		if popErr != nil {
-			q.Error = popErr
-			return q.Close()
+			return popErr
 		}
 	}
 
-	q.Error = q.Rows.Err()
-	return q.Close()
+	return q.Rows.Err()
 }
 
 // OutMany writes the query results to a slice of objects.
 func (q *QueryResult) OutMany(collection interface{}) error {
+	defer func() {
+		if err := q.Close(); err != nil {
+			debug("close err:", err)
+		}
+	}()
+
 	if q.Error != nil {
-		return q.Close()
+		return exception.Wrap(q.Error)
 	}
 
 	sliceType := reflectType(collection)
 	if sliceType.Kind() != reflect.Slice {
-		q.Error = exception.New("Destination collection is not a slice.")
-		return q.Close()
+		return exception.New("Destination collection is not a slice.")
 	}
 
 	sliceInnerType := reflectSliceType(collection)
@@ -538,8 +512,7 @@ func (q *QueryResult) OutMany(collection interface{}) error {
 		newObj, _ := MakeNew(sliceInnerType)
 		popErr := PopulateByName(newObj, q.Rows, meta)
 		if popErr != nil {
-			q.Error = popErr
-			return q.Close()
+			return popErr
 		}
 		newObjValue := reflectValue(newObj)
 		collectionValue.Set(reflect.Append(collectionValue, newObjValue))
@@ -549,32 +522,93 @@ func (q *QueryResult) OutMany(collection interface{}) error {
 	if !didSetRows {
 		collectionValue.Set(reflect.MakeSlice(sliceType, 0, 0))
 	}
-	q.Error = q.Rows.Err()
-	return q.Close()
+
+	return exception.Wrap(q.Rows.Err())
 }
 
 // Each writes the query results to a slice of objects.
 func (q *QueryResult) Each(consumer RowsConsumer) error {
+	defer func() {
+		if err := q.Close(); err != nil {
+			debug("close err:", err)
+		}
+	}()
+
 	if q.Error != nil {
-		return q.Close()
+		return q.Error
 	}
 
 	var err error
 	for q.Rows.Next() {
 		err = consumer(q.Rows)
 		if err != nil {
-			q.Error = err
-			return q.Close()
+			return err
 		}
 	}
 
-	q.Error = q.Rows.Err()
-	return q.Close()
+	return exception.Wrap(q.Rows.Err())
 }
 
 // --------------------------------------------------------------------------------
 // DbConnection
 // --------------------------------------------------------------------------------
+
+// NewUnauthenticatedDbConnection creates a new DbConnection without Username or Password or SSLMode
+func NewUnauthenticatedDbConnection(host, schema string) *DbConnection {
+	conn := &DbConnection{}
+	conn.Host = host
+	conn.Schema = schema
+	conn.Username = ""
+	conn.Password = ""
+	conn.SSLMode = "disable"
+	conn.TxLock = sync.Mutex{}
+	return conn
+}
+
+// NewDbConnection creates a new connection with SSLMode set to "disable"
+func NewDbConnection(host, schema, username, password string) *DbConnection {
+	conn := &DbConnection{}
+	conn.Host = host
+	conn.Schema = schema
+	conn.Username = username
+	conn.Password = password
+	conn.SSLMode = "disable"
+	conn.TxLock = sync.Mutex{}
+	return conn
+}
+
+// NewDbConnectionFromDSN creates a new connection with SSLMode set to "disable"
+func NewDbConnectionFromDSN(dsn string) *DbConnection {
+	conn := &DbConnection{}
+	conn.DSN = dsn
+	conn.TxLock = sync.Mutex{}
+	return conn
+}
+
+// NewSSLDbConnection creates a new connection with all available options (including SSLMode)
+func NewSSLDbConnection(host, schema, username, password, sslMode string) *DbConnection {
+	conn := &DbConnection{}
+	conn.Host = host
+	conn.Schema = schema
+	conn.Username = username
+	conn.Password = password
+	conn.SSLMode = sslMode
+	conn.TxLock = sync.Mutex{}
+	return conn
+}
+
+// DbConnection is the basic wrapper for connection parameters and saves a reference to the created sql.Connection.
+type DbConnection struct {
+	Host       string
+	Schema     string
+	Username   string
+	Password   string
+	SSLMode    string
+	DSN        string
+	Connection *sql.DB
+	Tx         *sql.Tx
+	TxLock     sync.Mutex
+}
 
 // CreatePostgresConnectionString returns a sql connection string from a given set of DbConnection parameters.
 func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
@@ -597,16 +631,25 @@ func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
 
 // IsolateToTransaction isolates a DbConnection, globally, to a transaction. This means that any operations called after this method will use the same transaction.
 func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
+	dbAlias.TxLock.Lock()
+	defer dbAlias.TxLock.Unlock()
+
 	dbAlias.Tx = tx
 }
 
 // ReleaseIsolation releases an isolation, does not commit or rollback.
 func (dbAlias *DbConnection) ReleaseIsolation() {
+	dbAlias.TxLock.Lock()
+	defer dbAlias.TxLock.Unlock()
+
 	dbAlias.Tx = nil
 }
 
 // IsIsolatedToTransaction indicates if a connection is isolated to a transaction.
 func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
+	dbAlias.TxLock.Lock()
+	defer dbAlias.TxLock.Unlock()
+
 	return dbAlias.Tx != nil
 }
 
@@ -621,15 +664,16 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	} else if dbAlias.Connection != nil {
 		tx, txErr := dbAlias.Connection.Begin()
 		return tx, exception.Wrap(txErr)
-	} else {
-		dbConn, dbConnErr := dbAlias.OpenNew()
-		if dbConnErr != nil {
-			return nil, exception.Wrap(dbConnErr)
-		}
-		dbAlias.Connection = dbConn
-		tx, txErr := dbAlias.Connection.Begin()
-		return tx, exception.Wrap(txErr)
 	}
+
+	dbConn, dbConnErr := dbAlias.OpenNew()
+	if dbConnErr != nil {
+		return nil, exception.Wrap(dbConnErr)
+	}
+	dbAlias.Connection = dbConn
+	tx, txErr := dbAlias.Connection.Begin()
+	return tx, exception.Wrap(txErr)
+
 }
 
 // Rollback rolls a given transaction back handling cases where the connection is already isolated.
@@ -679,31 +723,34 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 
 // Prepare prepares a new statement for the connection.
 func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
-	if tx == nil {
-		if dbAlias == nil {
-			return nil, exception.New("DbConnection is nil")
-		}
+	if dbAlias == nil {
+		return nil, exception.New("DbConnection is nil")
+	}
 
-		if dbAlias.Tx != nil {
-			stmt, stmtErr := dbAlias.Tx.Prepare(statement)
-			if stmtErr != nil {
-				return nil, exception.Newf("Postgres Error: %v", stmtErr)
-			}
-			return stmt, nil
-		}
-
-		dbConn, dbErr := dbAlias.Open()
-		if dbErr != nil {
-			return nil, exception.Newf("Postgres Error: %v", dbErr)
-		}
-		stmt, stmtErr := dbConn.Prepare(statement)
+	if tx != nil {
+		stmt, stmtErr := tx.Prepare(statement)
 		if stmtErr != nil {
 			return nil, exception.Newf("Postgres Error: %v", stmtErr)
 		}
 		return stmt, nil
 	}
 
-	stmt, stmtErr := tx.Prepare(statement)
+	if dbAlias.Tx != nil {
+		stmt, stmtErr := dbAlias.Tx.Prepare(statement)
+		if stmtErr != nil {
+			return nil, exception.Newf("Postgres Error: %v", stmtErr)
+		}
+		return stmt, nil
+	}
+
+	// create a new connection ...
+	dbConn, dbErr := dbAlias.Open()
+	debug("opening new connection")
+
+	if dbErr != nil {
+		return nil, exception.Newf("Postgres Error: %v", dbErr)
+	}
+	stmt, stmtErr := dbConn.Prepare(statement)
 	if stmtErr != nil {
 		return nil, exception.Newf("Postgres Error: %v", stmtErr)
 	}
@@ -1218,4 +1265,10 @@ func PopulateInOrder(object DatabaseMapped, row *sql.Rows, cols ColumnCollection
 	}
 
 	return nil
+}
+
+func debug(components ...interface{}) {
+	if len(os.Getenv("SPIFFY_DEBUG")) != 0 {
+		fmt.Printf("%s - Spiffy - %s\n", time.Now().UTC().Format(time.RFC3339), fmt.Sprint(components...))
+	}
 }
