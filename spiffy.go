@@ -524,7 +524,8 @@ func (q *QueryResult) OutMany(collection interface{}) error {
 
 	sliceType := reflectType(collection)
 	if sliceType.Kind() != reflect.Slice {
-		return exception.New("Destination collection is not a slice.")
+		q.Error = exception.New("Destination collection is not a slice.")
+		return q.Close()
 	}
 
 	sliceInnerType := reflectSliceType(collection)
@@ -562,7 +563,8 @@ func (q *QueryResult) Each(consumer RowsConsumer) error {
 	for q.Rows.Next() {
 		err = consumer(q.Rows)
 		if err != nil {
-			return err
+			q.Error = err
+			return q.Close()
 		}
 	}
 
