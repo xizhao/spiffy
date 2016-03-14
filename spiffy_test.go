@@ -54,25 +54,7 @@ type BenchObj struct {
 }
 
 func (b *BenchObj) Populate(rows *sql.Rows) error {
-	var id int
-	var name string
-	var ts time.Time
-	var amount float32
-	var pending bool
-	var category string
-	scanErr := rows.Scan(&id, &name, &ts, &amount, &pending, &category)
-
-	if scanErr != nil {
-		return scanErr
-	}
-
-	b.ID = id
-	b.Name = name
-	b.Timestamp = ts
-	b.Amount = amount
-	b.Pending = pending
-	b.Category = category
-	return nil
+	return rows.Scan(&b.ID, &b.Name, &b.Timestamp, &b.Amount, &b.Pending, &b.Category)
 }
 
 func (b BenchObj) TableName() string {
@@ -590,6 +572,11 @@ func TestQueryResultPanicHandling(t *testing.T) {
 		a.NotEmpty(bar)
 		return nil
 	})
+	a.NotNil(err) // this should have the result of the panic
 
-	a.NotNil(err)
+	// we now test to see if the connection is still in a good state, i.e. that we recovered from the panic
+	// and closed the connection / rows / statement
+	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+	a.Nil(err)
+	a.True(hasRows)
 }
