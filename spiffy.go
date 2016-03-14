@@ -418,7 +418,7 @@ func (q *QueryResult) Any() (hasRows bool, err error) {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v\n", err))
+			debug("query result cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -443,7 +443,7 @@ func (q *QueryResult) None() (hasRows bool, err error) {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v\n", err))
+			debug("query result cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -468,7 +468,7 @@ func (q *QueryResult) Scan(args ...interface{}) (err error) {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v\n", err))
+			debug("query result cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -499,7 +499,7 @@ func (q *QueryResult) Out(object DatabaseMapped) (err error) {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v\n", err))
+			debug("query result cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -533,7 +533,7 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v\n", err))
+			debug("query result cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
