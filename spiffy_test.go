@@ -574,3 +574,22 @@ func TestQueryResultNone(t *testing.T) {
 	a.Nil(notExistsErr)
 	a.True(notExists)
 }
+
+func TestQueryResultPanicHandling(t *testing.T) {
+	a := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	err = seedObjects(10, tx)
+	a.Nil(err)
+
+	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).Each(func(r *sql.Rows) error {
+		foo := []string{}
+		bar := foo[1]
+		a.NotEmpty(bar)
+		return nil
+	})
+
+	a.NotNil(err)
+}

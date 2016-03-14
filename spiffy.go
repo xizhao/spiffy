@@ -408,69 +408,104 @@ func (q *QueryResult) Close() error {
 }
 
 // Any returns if there are any results for the query.
-func (q *QueryResult) Any() (bool, error) {
+func (q *QueryResult) Any() (hasRows bool, err error) {
 	defer func() {
-		if err := q.Close(); err != nil {
-			debug("close err:", err)
+		if r := recover(); r != nil {
+			err = exception.WrapMany(err, exception.New(r))
+		}
+
+		if closeErr := q.Close(); closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+		if err != nil {
+			debug("query result cleanup:", err)
 		}
 	}()
 
 	if q.Error != nil {
-		return false, exception.Wrap(q.Error)
+		hasRows = false
+		err = exception.Wrap(q.Error)
+		return
 	}
 
-	hasRows := q.Rows.Next()
-	return hasRows, exception.Wrap(q.Rows.Err())
+	hasRows = q.Rows.Next()
+	return
 }
 
 // None returns if there are no results for the query.
-func (q *QueryResult) None() (bool, error) {
+func (q *QueryResult) None() (hasRows bool, err error) {
 	defer func() {
-		if err := q.Close(); err != nil {
-			debug("close err:", err)
+		if r := recover(); r != nil {
+			err = exception.WrapMany(err, exception.New(r))
+		}
+
+		if closeErr := q.Close(); closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+		if err != nil {
+			debug("query result cleanup:", err)
 		}
 	}()
 
 	if q.Error != nil {
-		return false, exception.Wrap(q.Error)
+		hasRows = false
+		err = exception.Wrap(q.Error)
+		return
 	}
 
-	hasNoRows := !q.Rows.Next()
-	return hasNoRows, exception.Wrap(q.Rows.Err())
+	hasRows = !q.Rows.Next()
+	return
 }
 
 // Scan writes the results to a given set of local variables.
-func (q *QueryResult) Scan(args ...interface{}) error {
+func (q *QueryResult) Scan(args ...interface{}) (err error) {
 	defer func() {
-		if err := q.Close(); err != nil {
-			debug("close err:", err)
+		if r := recover(); r != nil {
+			err = exception.WrapMany(err, exception.New(r))
+		}
+
+		if closeErr := q.Close(); closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+		if err != nil {
+			debug("query result cleanup:", err)
 		}
 	}()
 
 	if q.Error != nil {
-		return exception.Wrap(q.Error)
+		err = exception.Wrap(q.Error)
+		return
 	}
 
 	if q.Rows.Next() {
-		err := q.Rows.Scan(args...)
-		if err != nil {
-			return exception.Wrap(err)
+		scanErr := q.Rows.Scan(args...)
+		if scanErr != nil {
+			err = exception.Wrap(scanErr)
 		}
 	}
 
-	return exception.Wrap(q.Rows.Err())
+	err = exception.Wrap(q.Rows.Err())
+	return
 }
 
 // Out writes the query result to a single object via. reflection mapping.
-func (q *QueryResult) Out(object DatabaseMapped) error {
+func (q *QueryResult) Out(object DatabaseMapped) (err error) {
 	defer func() {
-		if err := q.Close(); err != nil {
-			debug("close err:", err)
+		if r := recover(); r != nil {
+			err = exception.WrapMany(err, exception.New(r))
+		}
+
+		if closeErr := q.Close(); closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+		if err != nil {
+			debug("query result cleanup:", err)
 		}
 	}()
 
 	if q.Error != nil {
-		return q.Error
+		err = exception.Wrap(q.Error)
+		return
 	}
 
 	meta := NewColumnCollectionFromInstance(object)
@@ -478,28 +513,39 @@ func (q *QueryResult) Out(object DatabaseMapped) error {
 	if q.Rows.Next() {
 		popErr := PopulateByName(object, q.Rows, meta)
 		if popErr != nil {
-			return popErr
+			err = popErr
+			return
 		}
 	}
 
-	return q.Rows.Err()
+	err = exception.Wrap(q.Rows.Err())
+	return
 }
 
 // OutMany writes the query results to a slice of objects.
-func (q *QueryResult) OutMany(collection interface{}) error {
+func (q *QueryResult) OutMany(collection interface{}) (err error) {
 	defer func() {
-		if err := q.Close(); err != nil {
-			debug("close err:", err)
+		if r := recover(); r != nil {
+			err = exception.WrapMany(err, exception.New(r))
+		}
+
+		if closeErr := q.Close(); closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+		if err != nil {
+			debug("query result cleanup:", err)
 		}
 	}()
 
 	if q.Error != nil {
-		return exception.Wrap(q.Error)
+		err = exception.Wrap(q.Error)
+		return err
 	}
 
 	sliceType := reflectType(collection)
 	if sliceType.Kind() != reflect.Slice {
-		return exception.New("Destination collection is not a slice.")
+		err = exception.New("Destination collection is not a slice.")
+		return
 	}
 
 	sliceInnerType := reflectSliceType(collection)
@@ -512,7 +558,8 @@ func (q *QueryResult) OutMany(collection interface{}) error {
 		newObj, _ := MakeNew(sliceInnerType)
 		popErr := PopulateByName(newObj, q.Rows, meta)
 		if popErr != nil {
-			return popErr
+			err = popErr
+			return
 		}
 		newObjValue := reflectValue(newObj)
 		collectionValue.Set(reflect.Append(collectionValue, newObjValue))
@@ -523,14 +570,25 @@ func (q *QueryResult) OutMany(collection interface{}) error {
 		collectionValue.Set(reflect.MakeSlice(sliceType, 0, 0))
 	}
 
-	return exception.Wrap(q.Rows.Err())
+	rowsErr := q.Rows.Err()
+	if rowsErr != nil {
+		err = exception.Wrap(rowsErr)
+	}
+	return
 }
 
 // Each writes the query results to a slice of objects.
-func (q *QueryResult) Each(consumer RowsConsumer) error {
+func (q *QueryResult) Each(consumer RowsConsumer) (err error) {
 	defer func() {
-		if err := q.Close(); err != nil {
-			debug("close err:", err)
+		if r := recover(); r != nil {
+			err = exception.WrapMany(err, exception.New(r))
+		}
+
+		if closeErr := q.Close(); closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+		if err != nil {
+			debug("query result cleanup:", err)
 		}
 	}()
 
@@ -538,7 +596,6 @@ func (q *QueryResult) Each(consumer RowsConsumer) error {
 		return q.Error
 	}
 
-	var err error
 	for q.Rows.Next() {
 		err = consumer(q.Rows)
 		if err != nil {
@@ -546,7 +603,11 @@ func (q *QueryResult) Each(consumer RowsConsumer) error {
 		}
 	}
 
-	return exception.Wrap(q.Rows.Err())
+	rowsErr := q.Rows.Err()
+	if rowsErr != nil {
+		err = exception.Wrap(rowsErr)
+	}
+	return
 }
 
 // --------------------------------------------------------------------------------
