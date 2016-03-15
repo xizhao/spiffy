@@ -410,15 +410,21 @@ func (q *QueryResult) Close() error {
 // Any returns if there are any results for the query.
 func (q *QueryResult) Any() (hasRows bool, err error) {
 	defer func() {
+		if err != nil {
+			debug("query result err before cleanup:", fmt.Sprintf("%#v", err))
+		}
+
 		if r := recover(); r != nil {
-			err = exception.WrapMany(err, exception.New(r))
+			recoveryException := exception.New(r)
+			debug("query result recovery error: ", fmt.Sprintf("%#v", recoveryException))
+			err = exception.WrapMany(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v", err))
+			debug("query result err after cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -435,15 +441,21 @@ func (q *QueryResult) Any() (hasRows bool, err error) {
 // None returns if there are no results for the query.
 func (q *QueryResult) None() (hasRows bool, err error) {
 	defer func() {
+		if err != nil {
+			debug("query result err before cleanup:", fmt.Sprintf("%#v", err))
+		}
+
 		if r := recover(); r != nil {
-			err = exception.WrapMany(err, exception.New(r))
+			recoveryException := exception.New(r)
+			debug("query result recovery error: ", fmt.Sprintf("%#v", recoveryException))
+			err = exception.WrapMany(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v", err))
+			debug("query result err after cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -460,15 +472,21 @@ func (q *QueryResult) None() (hasRows bool, err error) {
 // Scan writes the results to a given set of local variables.
 func (q *QueryResult) Scan(args ...interface{}) (err error) {
 	defer func() {
+		if err != nil {
+			debug("query result err before cleanup:", fmt.Sprintf("%#v", err))
+		}
+
 		if r := recover(); r != nil {
-			err = exception.WrapMany(err, exception.New(r))
+			recoveryException := exception.New(r)
+			debug("query result recovery error: ", fmt.Sprintf("%#v", recoveryException))
+			err = exception.WrapMany(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v", err))
+			debug("query result err after cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -491,15 +509,21 @@ func (q *QueryResult) Scan(args ...interface{}) (err error) {
 // Out writes the query result to a single object via. reflection mapping.
 func (q *QueryResult) Out(object DatabaseMapped) (err error) {
 	defer func() {
+		if err != nil {
+			debug("query result err before cleanup:", fmt.Sprintf("%#v", err))
+		}
+
 		if r := recover(); r != nil {
-			err = exception.WrapMany(err, exception.New(r))
+			recoveryException := exception.New(r)
+			debug("query result recovery error: ", fmt.Sprintf("%#v", recoveryException))
+			err = exception.WrapMany(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v", err))
+			debug("query result err after cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -525,15 +549,21 @@ func (q *QueryResult) Out(object DatabaseMapped) (err error) {
 // OutMany writes the query results to a slice of objects.
 func (q *QueryResult) OutMany(collection interface{}) (err error) {
 	defer func() {
+		if err != nil {
+			debug("query result err before cleanup:", fmt.Sprintf("%#v", err))
+		}
+
 		if r := recover(); r != nil {
-			err = exception.WrapMany(err, exception.New(r))
+			recoveryException := exception.New(r)
+			debug("query result recovery error: ", fmt.Sprintf("%#v", recoveryException))
+			err = exception.WrapMany(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v", err))
+			debug("query result err after cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
@@ -580,15 +610,21 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 // Each writes the query results to a slice of objects.
 func (q *QueryResult) Each(consumer RowsConsumer) (err error) {
 	defer func() {
+		if err != nil {
+			debug("query result err before cleanup:", fmt.Sprintf("%#v", err))
+		}
+
 		if r := recover(); r != nil {
-			err = exception.WrapMany(err, exception.New(r))
+			recoveryException := exception.New(r)
+			debug("query result recovery error: ", fmt.Sprintf("%#v", recoveryException))
+			err = exception.WrapMany(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
 		if err != nil {
-			debug("query result cleanup:", fmt.Sprintf("%#v\n", err))
+			debug("query result err after cleanup:", fmt.Sprintf("%#v", err))
 		}
 	}()
 
