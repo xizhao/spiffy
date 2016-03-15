@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -567,15 +568,52 @@ func TestQueryResultPanicHandling(t *testing.T) {
 	a.Nil(err)
 
 	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).Each(func(r *sql.Rows) error {
-		foo := []string{}
-		bar := foo[1]
-		a.NotEmpty(bar)
-		return nil
+		panic("THIS IS A TEST PANIC")
 	})
 	a.NotNil(err) // this should have the result of the panic
 
 	// we now test to see if the connection is still in a good state, i.e. that we recovered from the panic
 	// and closed the connection / rows / statement
+	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+	a.Nil(err)
+	a.True(hasRows)
+}
+
+func TestMultipleQueriesPerConnection(t *testing.T) {
+	a := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+
+	a.NotNil(DefaultDb().Connection)
+	a.Nil(DefaultDb().Tx)
+
+	go func() {
+		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		a.Nil(err)
+		a.True(hasRows)
+		wg.Done()
+	}()
+
+	go func() {
+		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		a.Nil(err)
+		a.True(hasRows)
+		wg.Done()
+	}()
+
+	go func() {
+		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		a.Nil(err)
+		a.True(hasRows)
+		wg.Done()
+	}()
+
+	wg.Wait()
+
 	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
 	a.Nil(err)
 	a.True(hasRows)
