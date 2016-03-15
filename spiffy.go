@@ -609,7 +609,7 @@ func NewUnauthenticatedDbConnection(host, schema string) *DbConnection {
 	conn.Username = ""
 	conn.Password = ""
 	conn.SSLMode = "disable"
-	conn.TxLock = sync.Mutex{}
+	conn.MetaLock = sync.Mutex{}
 	return conn
 }
 
@@ -621,7 +621,7 @@ func NewDbConnection(host, schema, username, password string) *DbConnection {
 	conn.Username = username
 	conn.Password = password
 	conn.SSLMode = "disable"
-	conn.TxLock = sync.Mutex{}
+	conn.MetaLock = sync.Mutex{}
 	return conn
 }
 
@@ -629,7 +629,7 @@ func NewDbConnection(host, schema, username, password string) *DbConnection {
 func NewDbConnectionFromDSN(dsn string) *DbConnection {
 	conn := &DbConnection{}
 	conn.DSN = dsn
-	conn.TxLock = sync.Mutex{}
+	conn.MetaLock = sync.Mutex{}
 	return conn
 }
 
@@ -641,7 +641,7 @@ func NewSSLDbConnection(host, schema, username, password, sslMode string) *DbCon
 	conn.Username = username
 	conn.Password = password
 	conn.SSLMode = sslMode
-	conn.TxLock = sync.Mutex{}
+	conn.MetaLock = sync.Mutex{}
 	return conn
 }
 
@@ -655,7 +655,7 @@ type DbConnection struct {
 	DSN        string
 	Connection *sql.DB
 	Tx         *sql.Tx
-	TxLock     sync.Mutex
+	MetaLock   sync.Mutex
 }
 
 // CreatePostgresConnectionString returns a sql connection string from a given set of DbConnection parameters.
@@ -679,24 +679,24 @@ func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
 
 // IsolateToTransaction isolates a DbConnection, globally, to a transaction. This means that any operations called after this method will use the same transaction.
 func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
-	dbAlias.TxLock.Lock()
-	defer dbAlias.TxLock.Unlock()
+	dbAlias.MetaLock.Lock()
+	defer dbAlias.MetaLock.Unlock()
 
 	dbAlias.Tx = tx
 }
 
 // ReleaseIsolation releases an isolation, does not commit or rollback.
 func (dbAlias *DbConnection) ReleaseIsolation() {
-	dbAlias.TxLock.Lock()
-	defer dbAlias.TxLock.Unlock()
+	dbAlias.MetaLock.Lock()
+	defer dbAlias.MetaLock.Unlock()
 
 	dbAlias.Tx = nil
 }
 
 // IsIsolatedToTransaction indicates if a connection is isolated to a transaction.
 func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
-	dbAlias.TxLock.Lock()
-	defer dbAlias.TxLock.Unlock()
+	dbAlias.MetaLock.Lock()
+	defer dbAlias.MetaLock.Unlock()
 
 	return dbAlias.Tx != nil
 }
@@ -714,13 +714,12 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 		return tx, exception.Wrap(txErr)
 	}
 
-	dbConn, dbConnErr := dbAlias.OpenNew()
-	if dbConnErr != nil {
-		return nil, exception.Wrap(dbConnErr)
+	connection, err := dbAlias.Open()
+	if err != nil {
+		return nil, exception.Wrap(err)
 	}
-	dbAlias.Connection = dbConn
-	tx, txErr := dbAlias.Connection.Begin()
-	return tx, exception.Wrap(txErr)
+	tx, err := connection.Begin()
+	return tx, exception.Wrap(err)
 
 }
 
@@ -793,7 +792,6 @@ func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, e
 
 	// create a new connection ...
 	dbConn, dbErr := dbAlias.Open()
-
 	if dbErr != nil {
 		return nil, exception.Newf("Postgres Error: %v", dbErr)
 	}
@@ -816,11 +814,16 @@ func (dbAlias *DbConnection) OpenNew() (*sql.DB, error) {
 // Open returns a connection object, either a cached connection object or creating a new one in the process.
 func (dbAlias *DbConnection) Open() (*sql.DB, error) {
 	if dbAlias.Connection == nil {
-		newConn, err := dbAlias.OpenNew()
-		if err != nil {
-			return nil, exception.Wrap(err)
+		dbAlias.MetaLock.Lock()
+		defer dbAlias.MetaLock.Unlock()
+
+		if dbAlias.Connection == nil {
+			newConn, err := dbAlias.OpenNew()
+			if err != nil {
+				return nil, exception.Wrap(err)
+			}
+			dbAlias.Connection = newConn
 		}
-		dbAlias.Connection = newConn
 	}
 	return dbAlias.Connection, nil
 }
