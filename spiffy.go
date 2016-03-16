@@ -402,14 +402,6 @@ func (q *QueryResult) Close() error {
 		q.Stmt = nil
 	}
 
-	if rowsErr != nil {
-		fmt.Printf("q.Close() rowsErr: %#v\n", rowsErr)
-	}
-
-	if stmtErr != nil {
-		fmt.Printf("q.Close() stmtErr: %#v\n", stmtErr)
-	}
-
 	return exception.WrapMany(q.Error, rowsErr, stmtErr)
 }
 
