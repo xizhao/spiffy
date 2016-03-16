@@ -795,7 +795,7 @@ func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, e
 		return stmt, nil
 	}
 
-	// create a new connection ...
+	// open shared connection
 	dbConn, dbErr := dbAlias.Open()
 	if dbErr != nil {
 		return nil, exception.Newf("Postgres Error: %v", dbErr)

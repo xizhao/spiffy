@@ -579,7 +579,7 @@ func TestQueryResultPanicHandling(t *testing.T) {
 	a.True(hasRows)
 }
 
-func TestMultipleQueriesPerConnection(t *testing.T) {
+func TestMultipleQueriesPerTransaction(t *testing.T) {
 	a := assert.New(t)
 	tx, err := DefaultDb().Begin()
 	a.Nil(err)
@@ -622,7 +622,53 @@ func TestMultipleQueriesPerConnection(t *testing.T) {
 	a.True(hasRows)
 }
 
-func TestMultipleQueriesPerConnectionWithFailure(t *testing.T) {
+func TestMultipleQueriesPerTransactionWithIsolation(t *testing.T) {
+	a := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	DefaultDb().IsolateToTransaction(tx)
+	defer DefaultDb().ReleaseIsolation()
+
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+
+	a.NotNil(DefaultDb().Connection)
+	a.NotNil(DefaultDb().Tx)
+
+	err = seedObjects(10, tx)
+	a.Nil(err)
+
+	go func() {
+		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
+		a.Nil(err)
+		a.True(hasRows)
+		wg.Done()
+	}()
+
+	go func() {
+		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
+		a.Nil(err)
+		a.True(hasRows)
+		wg.Done()
+	}()
+
+	go func() {
+		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
+		a.Nil(err)
+		a.True(hasRows)
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	hasRows, err := DefaultDb().Query("select * from bench_object").Any()
+	a.Nil(err)
+	a.True(hasRows)
+}
+
+func TestMultipleQueriesPerTransactionWithFailure(t *testing.T) {
 	a := assert.New(t)
 	tx, err := DefaultDb().Begin()
 	a.Nil(err)
