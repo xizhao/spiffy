@@ -7,12 +7,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/blendlabs/go-exception"
 
@@ -404,6 +402,14 @@ func (q *QueryResult) Close() error {
 		q.Stmt = nil
 	}
 
+	if rowsErr != nil {
+		fmt.Printf("q.Close() rowsErr: %#v\n", rowsErr)
+	}
+
+	if stmtErr != nil {
+		fmt.Printf("q.Close() stmtErr: %#v\n", stmtErr)
+	}
+
 	return exception.WrapMany(q.Error, rowsErr, stmtErr)
 }
 
@@ -720,7 +726,6 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	}
 	tx, err := connection.Begin()
 	return tx, exception.Wrap(err)
-
 }
 
 // Rollback rolls a given transaction back handling cases where the connection is already isolated.
@@ -1315,10 +1320,4 @@ func PopulateInOrder(object DatabaseMapped, row *sql.Rows, cols ColumnCollection
 	}
 
 	return nil
-}
-
-func debug(components ...interface{}) {
-	if len(os.Getenv("SPIFFY_DEBUG")) != 0 {
-		fmt.Printf("%s - Spiffy - %s\n", time.Now().UTC().Format(time.RFC3339), fmt.Sprint(components...))
-	}
 }
