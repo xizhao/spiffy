@@ -402,7 +402,7 @@ func (q *QueryResult) Close() error {
 		q.Stmt = nil
 	}
 
-	return exception.WrapMany(q.Error, rowsErr, stmtErr)
+	return exception.WrapMany(rowsErr, stmtErr)
 }
 
 // Any returns if there are any results for the query.
