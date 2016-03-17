@@ -831,18 +831,32 @@ func (dbAlias *DbConnection) Exec(statement string, args ...interface{}) error {
 }
 
 // ExecInTransaction runs a statement within a transaction.
-func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, args ...interface{}) error {
+func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, args ...interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
+
 	stmt, stmtErr := dbAlias.Prepare(statement, tx)
 	if stmtErr != nil {
-		return exception.Wrap(stmtErr)
+		err = exception.Wrap(stmtErr)
+		return
 	}
-	defer stmt.Close()
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	if _, execErr := stmt.Exec(args...); execErr != nil {
-		return exception.Wrap(execErr)
+		err = exception.Wrap(execErr)
+		return
 	}
 
-	return nil
+	return
 }
 
 // Query runs the selected statement and returns a QueryResult.
@@ -851,27 +865,32 @@ func (dbAlias *DbConnection) Query(statement string, args ...interface{}) *Query
 }
 
 // QueryInTransaction runs the selected statement in a transaction and returns a QueryResult.
-func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, args ...interface{}) *QueryResult {
-	result := QueryResult{}
+func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, args ...interface{}) (result *QueryResult) {
+	result = &QueryResult{}
 
 	stmt, stmtErr := dbAlias.Prepare(statement, tx)
 	if stmtErr != nil {
 		result.Error = exception.Wrap(stmtErr)
-		return &result
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			closeErr := stmt.Close()
+			result.Error = exception.WrapMany(result.Error, exception.New(r), closeErr)
+		}
+	}()
 
 	rows, queryErr := stmt.Query(args...)
 	if queryErr != nil {
-		if closeErr := stmt.Close(); closeErr != nil {
-			result.Error = exception.WrapMany(closeErr, queryErr)
-		} else {
-			result.Error = exception.Wrap(queryErr)
-		}
-		return &result
+		result.Error = queryErr
+		return
 	}
+
+	// the result MUST close these.
 	result.Stmt = stmt
 	result.Rows = rows
-	return &result
+	return
 }
 
 // GetByID returns a given object based on a group of primary key ids.
@@ -880,7 +899,14 @@ func (dbAlias *DbConnection) GetByID(object DatabaseMapped, ids ...interface{}) 
 }
 
 // GetByIDInTransaction returns a given object based on a group of primary key ids within a transaction.
-func (dbAlias *DbConnection) GetByIDInTransaction(object DatabaseMapped, tx *sql.Tx, ids ...interface{}) error {
+func (dbAlias *DbConnection) GetByIDInTransaction(object DatabaseMapped, tx *sql.Tx, ids ...interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
+
 	if ids == nil {
 		return exception.New("invalid `ids` parameter.")
 	}
@@ -892,31 +918,45 @@ func (dbAlias *DbConnection) GetByIDInTransaction(object DatabaseMapped, tx *sql
 	pks := standardCols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
-		return exception.New("no primary key on object to get by.")
+		err = exception.New("no primary key on object to get by.")
+		return
 	}
 
 	queryBody := fmt.Sprintf("SELECT %s FROM %s %s", strings.Join(columnNames, ","), tableName, makeWhereClause(pks, 1))
 
 	stmt, stmtErr := dbAlias.Prepare(queryBody, tx)
 	if stmtErr != nil {
-		return exception.Wrap(stmtErr)
+		err = exception.Wrap(stmtErr)
+		return
 	}
-	defer stmt.Close()
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	rows, queryErr := stmt.Query(ids...)
 	if queryErr != nil {
-		return exception.Wrap(queryErr)
+		err = exception.Wrap(queryErr)
+		return
 	}
-
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	for rows.Next() {
 		if popErr := PopulateInOrder(object, rows, standardCols); popErr != nil {
-			return exception.Wrap(popErr)
+			err = exception.Wrap(popErr)
+			return
 		}
 	}
 
-	return exception.Wrap(rows.Err())
+	err = exception.Wrap(rows.Err())
+	return
 }
 
 // GetAll returns all rows of an object mapped table.
@@ -925,39 +965,59 @@ func (dbAlias *DbConnection) GetAll(collection interface{}) error {
 }
 
 // GetAllInTransaction returns all rows of an object mapped table wrapped in a transaction.
-func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx) error {
+func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
+
 	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
 	tableName, _ := TableName(t)
 	meta := NewColumnCollectionFromType(t).NotReadOnly()
 
 	columnNames := meta.ColumnNames()
-
 	sqlStmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(columnNames, ","), tableName)
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return exception.Wrap(stmtErr)
+		err = exception.Wrap(stmtErr)
+		return
 	}
-	defer stmt.Close()
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	rows, queryErr := stmt.Query()
 	if queryErr != nil {
-		return exception.Wrap(queryErr)
+		err = exception.Wrap(queryErr)
+		return
 	}
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	for rows.Next() {
 		newObj, _ := MakeNew(t)
 		popErr := PopulateInOrder(newObj, rows, meta)
 		if popErr != nil {
-			return exception.Wrap(popErr)
+			err = exception.Wrap(popErr)
+			return
 		}
 		newObjValue := reflectValue(newObj)
 		collectionValue.Set(reflect.Append(collectionValue, newObjValue))
 	}
 
-	return exception.Wrap(rows.Err())
+	err = exception.Wrap(rows.Err())
+	return
 }
 
 // Create writes an object to the database.
@@ -966,7 +1026,14 @@ func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
 }
 
 // CreateInTransaction writes an object to the database within a transaction.
-func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
+func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
+
 	cols := NewColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
 
@@ -998,9 +1065,15 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return exception.Wrap(stmtErr)
+		err = exception.Wrap(stmtErr)
+		return
 	}
-	defer stmt.Close()
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	if len(serials.Columns) == 0 {
 		_, execErr := stmt.Exec(colValues...)
@@ -1030,16 +1103,20 @@ func (dbAlias *DbConnection) Update(object DatabaseMapped) error {
 }
 
 // UpdateInTransaction updates an object wrapped in a transaction.
-func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.Tx) error {
-	tableName := object.TableName()
+func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.Tx) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
 
+	tableName := object.TableName()
 	cols := NewColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials().NotPrimaryKeys()
 	pks := cols.PrimaryKeys()
 	allCols := writeCols.ConcatWith(pks)
-
 	totalValues := allCols.ColumnValues(object)
-
 	numColumns := len(writeCols.Columns)
 
 	sqlStmt := "UPDATE " + tableName + " SET "
@@ -1051,21 +1128,26 @@ func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.
 	}
 
 	whereClause := makeWhereClause(pks, numColumns+1)
-
 	sqlStmt = sqlStmt + whereClause
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
 		return exception.Wrap(stmtErr)
 	}
-	defer stmt.Close()
-	_, err := stmt.Exec(totalValues...)
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
-	if err != nil {
-		return exception.Wrap(err)
+	_, execErr := stmt.Exec(totalValues...)
+	if execErr != nil {
+		err = exception.Wrap(err)
+		return
 	}
 
-	return nil
+	return
 }
 
 // Exists returns a bool if a given object exists (utilizing the primary key columns if they exist).
@@ -1074,30 +1156,55 @@ func (dbAlias *DbConnection) Exists(object DatabaseMapped) (bool, error) {
 }
 
 // ExistsInTransaction returns a bool if a given object exists (utilizing the primary key columns if they exist) wrapped in a transaction.
-func (dbAlias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.Tx) (bool, error) {
+func (dbAlias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.Tx) (exists bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
+
 	tableName := object.TableName()
 	cols := NewColumnCollectionFromInstance(object)
 	pks := cols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
-		return false, exception.New("No primary key on object.")
+		exists = false
+		err = exception.New("No primary key on object.")
+		return
 	}
 	whereClause := makeWhereClause(pks, 1)
 	sqlStmt := fmt.Sprintf("SELECT 1 FROM %s %s", tableName, whereClause)
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return false, exception.Wrap(stmtErr)
+		exists = false
+		err = exception.Wrap(stmtErr)
+		return
 	}
-	defer stmt.Close()
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
+
 	pkValues := pks.ColumnValues(object)
 	rows, queryErr := stmt.Query(pkValues...)
-	defer rows.Close()
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
+
 	if queryErr != nil {
-		return false, exception.Wrap(queryErr)
+		exists = false
+		err = exception.Wrap(queryErr)
+		return
 	}
 
-	exists := rows.Next()
-	return exists, nil
+	exists = rows.Next()
+	return
 }
 
 // Delete deletes an object from the database.
@@ -1106,13 +1213,21 @@ func (dbAlias *DbConnection) Delete(object DatabaseMapped) error {
 }
 
 // DeleteInTransaction deletes an object from the database wrapped in a transaction.
-func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.Tx) error {
+func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.Tx) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+	}()
+
 	tableName := object.TableName()
 	cols := NewColumnCollectionFromInstance(object)
 	pks := cols.PrimaryKeys()
 
 	if len(pks.Columns) == 0 {
-		return exception.New("No primary key on object.")
+		err = exception.New("No primary key on object.")
+		return
 	}
 
 	whereClause := makeWhereClause(pks, 1)
@@ -1120,14 +1235,23 @@ func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return exception.Wrap(stmtErr)
+		err = exception.Wrap(stmtErr)
+		return
 	}
-	defer stmt.Close()
+	defer func() {
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.WrapMany(err, closeErr)
+		}
+	}()
 
 	pkValues := pks.ColumnValues(object)
 
-	_, err := stmt.Exec(pkValues...)
-	return exception.Wrap(err)
+	_, execErr := stmt.Exec(pkValues...)
+	if execErr != nil {
+		err = exception.Wrap(execErr)
+	}
+	return
 }
 
 // --------------------------------------------------------------------------------
