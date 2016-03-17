@@ -873,7 +873,6 @@ func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, ar
 		result.Error = exception.Wrap(stmtErr)
 		return
 	}
-
 	defer func() {
 		if r := recover(); r != nil {
 			closeErr := stmt.Close()
@@ -883,7 +882,7 @@ func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, ar
 
 	rows, queryErr := stmt.Query(args...)
 	if queryErr != nil {
-		result.Error = queryErr
+		result.Error = exception.Wrap(queryErr)
 		return
 	}
 
