@@ -1078,7 +1078,8 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 	if len(serials.Columns) == 0 {
 		_, execErr := stmt.Exec(colValues...)
 		if execErr != nil {
-			return exception.Wrap(execErr)
+			err = exception.Wrap(execErr)
+			return
 		}
 	} else {
 		serial := serials.Columns[0]
@@ -1086,11 +1087,13 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 		var id interface{}
 		execErr := stmt.QueryRow(colValues...).Scan(&id)
 		if execErr != nil {
-			return exception.Wrap(execErr)
+			err = exception.Wrap(execErr)
+			return
 		}
 		setErr := serial.SetValue(object, id)
 		if setErr != nil {
-			return exception.Wrap(setErr)
+			err = exception.Wrap(setErr)
+			return
 		}
 	}
 
@@ -1132,7 +1135,8 @@ func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.
 
 	stmt, stmtErr := dbAlias.Prepare(sqlStmt, tx)
 	if stmtErr != nil {
-		return exception.Wrap(stmtErr)
+		err = exception.Wrap(stmtErr)
+		return
 	}
 	defer func() {
 		closeErr := stmt.Close()
