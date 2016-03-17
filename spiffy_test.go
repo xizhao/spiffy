@@ -595,7 +595,7 @@ func TestMultipleQueriesPerTransaction(t *testing.T) {
 	a.Nil(err)
 
 	go func() {
-		wg.Done()
+		defer wg.Done()
 		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
 		a.Nil(err)
 		a.True(hasRows)
