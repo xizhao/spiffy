@@ -679,7 +679,6 @@ type DbConnection struct {
 	SSLMode    string
 	DSN        string
 	Connection *sql.DB
-	Tx         *sql.Tx
 	MetaLock   sync.Mutex
 }
 
@@ -747,14 +746,6 @@ func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, e
 
 	if tx != nil {
 		stmt, stmtErr := tx.Prepare(statement)
-		if stmtErr != nil {
-			return nil, exception.Newf("Postgres Error: %v", stmtErr)
-		}
-		return stmt, nil
-	}
-
-	if dbAlias.Tx != nil {
-		stmt, stmtErr := dbAlias.Tx.Prepare(statement)
 		if stmtErr != nil {
 			return nil, exception.Newf("Postgres Error: %v", stmtErr)
 		}
