@@ -232,24 +232,6 @@ func TestAliases(t *testing.T) {
 	a.NotNil(defaultConn, "DefaultDb() with an alias should return the aliased connection.")
 }
 
-func TestTransactionIsolation(t *testing.T) {
-	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
-	defer a.Nil(tx.Rollback())
-
-	DefaultDb().IsolateToTransaction(tx)
-	a.True(DefaultDb().Tx != nil)
-	a.True(DefaultDb().IsIsolatedToTransaction())
-
-	_, tx2Err := DefaultDb().Begin()
-	a.Nil(tx2Err)
-
-	DefaultDb().ReleaseIsolation()
-	a.False(DefaultDb().IsIsolatedToTransaction())
-
-}
-
 func TestPrepare(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()
@@ -618,52 +600,6 @@ func TestMultipleQueriesPerTransaction(t *testing.T) {
 	wg.Wait()
 
 	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
-	a.Nil(err)
-	a.True(hasRows)
-}
-
-func TestMultipleQueriesPerTransactionWithIsolation(t *testing.T) {
-	a := assert.New(t)
-	tx, err := DefaultDb().Begin()
-	a.Nil(err)
-	defer tx.Rollback()
-
-	DefaultDb().IsolateToTransaction(tx)
-	defer DefaultDb().ReleaseIsolation()
-
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-
-	a.NotNil(DefaultDb().Connection)
-	a.NotNil(DefaultDb().Tx)
-
-	err = seedObjects(10, tx)
-	a.Nil(err)
-
-	go func() {
-		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
-		a.Nil(err)
-		a.True(hasRows)
-		wg.Done()
-	}()
-
-	go func() {
-		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
-		a.Nil(err)
-		a.True(hasRows)
-		wg.Done()
-	}()
-
-	go func() {
-		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
-		a.Nil(err)
-		a.True(hasRows)
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	hasRows, err := DefaultDb().Query("select * from bench_object").Any()
 	a.Nil(err)
 	a.True(hasRows)
 }

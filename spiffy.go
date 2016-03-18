@@ -702,39 +702,13 @@ func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
 	return fmt.Sprintf("postgres://%s/%s%s", dbAlias.Host, dbAlias.Schema, sslMode)
 }
 
-// IsolateToTransaction isolates a DbConnection, globally, to a transaction. This means that any operations called after this method will use the same transaction.
-func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
-	dbAlias.MetaLock.Lock()
-	defer dbAlias.MetaLock.Unlock()
-
-	dbAlias.Tx = tx
-}
-
-// ReleaseIsolation releases an isolation, does not commit or rollback.
-func (dbAlias *DbConnection) ReleaseIsolation() {
-	dbAlias.MetaLock.Lock()
-	defer dbAlias.MetaLock.Unlock()
-
-	dbAlias.Tx = nil
-}
-
-// IsIsolatedToTransaction indicates if a connection is isolated to a transaction.
-func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
-	dbAlias.MetaLock.Lock()
-	defer dbAlias.MetaLock.Unlock()
-
-	return dbAlias.Tx != nil
-}
-
 // Begin starts a new transaction.
 func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	if dbAlias == nil {
 		return nil, exception.New("`dbAlias` is uninitialized, cannot continue.")
 	}
 
-	if dbAlias.Tx != nil {
-		return dbAlias.Tx, nil
-	} else if dbAlias.Connection != nil {
+	if dbAlias.Connection != nil {
 		tx, txErr := dbAlias.Connection.Begin()
 		return tx, exception.Wrap(txErr)
 	}
@@ -747,30 +721,6 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	return tx, exception.Wrap(err)
 }
 
-// Rollback rolls a given transaction back handling cases where the connection is already isolated.
-func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
-	if dbAlias == nil {
-		return exception.New("`dbAlias` is uninitialized, cannot rollback.")
-	}
-
-	if dbAlias.Tx != nil {
-		return nil
-	}
-	return tx.Rollback()
-}
-
-// Commit commits a given transaction handling cases where the connection is already isolated.'
-func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
-	if dbAlias == nil {
-		return exception.New("`dbAlias` is uninitialized, cannot commit.")
-	}
-
-	if dbAlias.Tx != nil {
-		return nil
-	}
-	return tx.Commit()
-}
-
 // WrapInTransaction performs the given action wrapped in a transaction. Will Commit() on success and Rollback() on a non-nil error returned.
 func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error {
 	tx, err := dbAlias.Begin()
@@ -778,9 +728,6 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 		return exception.Wrap(err)
 	}
 	err = action(tx)
-	if dbAlias.IsIsolatedToTransaction() {
-		return exception.Wrap(err)
-	}
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			return exception.WrapMany(rollbackErr, err)
