@@ -264,7 +264,7 @@ func GenerateColumnCollectionForType(t reflect.Type) *ColumnCollection {
 		}
 	}
 
-	return NewColumnCollection(cols)
+	return NewColumnCollectionFromColumns(cols)
 }
 
 // ColumnCollection represents the column metadata for a given struct.
