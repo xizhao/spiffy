@@ -19,7 +19,7 @@ import (
 )
 
 var metaCacheLock = sync.Mutex{}
-var metaCache map[reflect.Type]ColumnCollection
+var metaCache map[reflect.Type]*ColumnCollection
 
 var defaultAlias string
 var defaultAliasLock = sync.Mutex{}
@@ -203,7 +203,7 @@ func (c Column) GetValue(object DatabaseMapped) interface{} {
 // --------------------------------------------------------------------------------
 
 // NewColumnCollection creates a column lookup for a slice of columns.
-func NewColumnCollection(columns []Column) ColumnCollection {
+func NewColumnCollection(columns []Column) *ColumnCollection {
 	cc := ColumnCollection{Columns: columns}
 	lookup := make(map[string]*Column)
 	for i := 0; i < len(columns); i++ {
@@ -211,32 +211,32 @@ func NewColumnCollection(columns []Column) ColumnCollection {
 		lookup[col.ColumnName] = col
 	}
 	cc.Lookup = lookup
-	return cc
+	return &cc
 }
 
 // NewColumnCollectionFromInstance reflects an object instance into a new column collection.
-func NewColumnCollectionFromInstance(object DatabaseMapped) ColumnCollection {
+func NewColumnCollectionFromInstance(object DatabaseMapped) *ColumnCollection {
 	return NewColumnCollectionFromType(reflect.TypeOf(object))
 }
 
 // NewColumnCollectionFromType reflects a reflect.Type into a column collection.
 // The results of this are cached for speed.
-func NewColumnCollectionFromType(t reflect.Type) ColumnCollection {
+func NewColumnCollectionFromType(t reflect.Type) *ColumnCollection {
 	metaCacheLock.Lock()
 	defer metaCacheLock.Unlock()
 
 	if metaCache == nil {
-		metaCache = map[reflect.Type]ColumnCollection{}
+		metaCache = map[reflect.Type]*ColumnCollection{}
 	}
 
 	if _, ok := metaCache[t]; !ok {
-		metaCache[t] = CreateColumnsByType(t)
+		metaCache[t] = GenerateColumnCollectionForType(t)
 	}
 	return metaCache[t]
 }
 
-// CreateColumnsByType reflects a new column collection from a reflect.Type.
-func CreateColumnsByType(t reflect.Type) ColumnCollection {
+// GenerateColumnCollectionForType reflects a new column collection from a reflect.Type.
+func GenerateColumnCollectionForType(t reflect.Type) *ColumnCollection {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -262,12 +262,19 @@ func CreateColumnsByType(t reflect.Type) ColumnCollection {
 
 // ColumnCollection represents the column metadata for a given struct.
 type ColumnCollection struct {
-	Columns []Column
-	Lookup  map[string]*Column
+	Columns      []Column
+	Lookup       map[string]*Column
+	columnPrefix string
+}
+
+// WithColumnPrefix applies a column prefix to column names.
+func (cc *ColumnCollection) WithColumnPrefix(prefix string) *ColumnCollection {
+	cc.columnPrefix = prefix
+	return cc
 }
 
 // PrimaryKeys are columns we use as where predicates and can't update.
-func (cc ColumnCollection) PrimaryKeys() ColumnCollection {
+func (cc ColumnCollection) PrimaryKeys() *ColumnCollection {
 	var cols []Column
 	for _, c := range cc.Columns {
 		if c.IsPrimaryKey {
@@ -278,7 +285,7 @@ func (cc ColumnCollection) PrimaryKeys() ColumnCollection {
 }
 
 // NotPrimaryKeys are columns we can update.
-func (cc ColumnCollection) NotPrimaryKeys() ColumnCollection {
+func (cc ColumnCollection) NotPrimaryKeys() *ColumnCollection {
 	var cols []Column
 	for _, c := range cc.Columns {
 		if !c.IsPrimaryKey {
@@ -289,7 +296,7 @@ func (cc ColumnCollection) NotPrimaryKeys() ColumnCollection {
 }
 
 // Serials are columns we have to return the id of.
-func (cc ColumnCollection) Serials() ColumnCollection {
+func (cc ColumnCollection) Serials() *ColumnCollection {
 	var cols []Column
 	for _, c := range cc.Columns {
 		if c.IsSerial {
@@ -300,7 +307,7 @@ func (cc ColumnCollection) Serials() ColumnCollection {
 }
 
 // NotSerials are columns we don't have to return the id of.
-func (cc ColumnCollection) NotSerials() ColumnCollection {
+func (cc ColumnCollection) NotSerials() *ColumnCollection {
 	var cols []Column
 	for _, c := range cc.Columns {
 		if !c.IsSerial {
@@ -311,7 +318,7 @@ func (cc ColumnCollection) NotSerials() ColumnCollection {
 }
 
 // ReadOnly are columns that we don't have to insert upon Create().
-func (cc ColumnCollection) ReadOnly() ColumnCollection {
+func (cc ColumnCollection) ReadOnly() *ColumnCollection {
 	var cols []Column
 	for _, c := range cc.Columns {
 		if c.IsReadOnly {
@@ -322,7 +329,7 @@ func (cc ColumnCollection) ReadOnly() ColumnCollection {
 }
 
 // NotReadOnly are columns that we have to insert upon Create().
-func (cc ColumnCollection) NotReadOnly() ColumnCollection {
+func (cc ColumnCollection) NotReadOnly() *ColumnCollection {
 	var cols []Column
 	for _, c := range cc.Columns {
 		if !c.IsReadOnly {
@@ -336,7 +343,24 @@ func (cc ColumnCollection) NotReadOnly() ColumnCollection {
 func (cc ColumnCollection) ColumnNames() []string {
 	var names []string
 	for _, c := range cc.Columns {
-		names = append(names, c.ColumnName)
+		if len(cc.columnPrefix) != 0 {
+			names = append(names, fmt.Sprintf("%s%s", cc.columnPrefix, c.ColumnName))
+		} else {
+			names = append(names, c.ColumnName)
+		}
+	}
+	return names
+}
+
+// ColumnNamesFromAlias returns the string names for all the columns in the collection.
+func (cc ColumnCollection) ColumnNamesFromAlias(tableAlias string) []string {
+	var names []string
+	for _, c := range cc.Columns {
+		if len(cc.columnPrefix) != 0 {
+			names = append(names, fmt.Sprintf("%s.%s as %s%s", tableAlias, c.ColumnName, cc.columnPrefix, c.ColumnName))
+		} else {
+			names = append(names, fmt.Sprintf("%s.%s", tableAlias, c.ColumnName))
+		}
 	}
 	return names
 }
@@ -370,7 +394,7 @@ func (cc ColumnCollection) FirstOrDefault() *Column {
 }
 
 // ConcatWith merges a collection with another collection.
-func (cc ColumnCollection) ConcatWith(other ColumnCollection) ColumnCollection {
+func (cc ColumnCollection) ConcatWith(other *ColumnCollection) *ColumnCollection {
 	var total []Column
 	total = append(total, cc.Columns...)
 	total = append(total, other.Columns...)
@@ -1256,7 +1280,7 @@ func reflectSliceType(collection interface{}) reflect.Type {
 }
 
 // makeWhereClause returns the sql `where` clause for a column collection, starting at a given index (used in sql $1 parameterization).
-func makeWhereClause(pks ColumnCollection, startAt int) string {
+func makeWhereClause(pks *ColumnCollection, startAt int) string {
 	whereClause := " WHERE "
 	for i, pk := range pks.Columns {
 		whereClause = whereClause + fmt.Sprintf("%s = %s", pk.ColumnName, "$"+strconv.Itoa(i+startAt))
@@ -1309,7 +1333,7 @@ func Populate(object DatabaseMapped, row *sql.Rows) error {
 }
 
 // PopulateByName sets the values of an object from the values of a sql.Rows object using column names.
-func PopulateByName(object DatabaseMapped, row *sql.Rows, cols ColumnCollection) error {
+func PopulateByName(object DatabaseMapped, row *sql.Rows, cols *ColumnCollection) error {
 	if populatable, isPopulatable := object.(Populatable); isPopulatable {
 		return populatable.Populate(row)
 	}
@@ -1359,7 +1383,7 @@ func PopulateByName(object DatabaseMapped, row *sql.Rows, cols ColumnCollection)
 // PopulateInOrder sets the values of an object in order from a sql.Rows object.
 // Only use this method if you're certain of the column order. It is faster than populateByName.
 // Optionally if your object implements Populatable this process will be skipped completely, which is even faster.
-func PopulateInOrder(object DatabaseMapped, row *sql.Rows, cols ColumnCollection) error {
+func PopulateInOrder(object DatabaseMapped, row *sql.Rows, cols *ColumnCollection) error {
 	if populatable, isPopulatable := object.(Populatable); isPopulatable {
 		return populatable.Populate(row)
 	}
