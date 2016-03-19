@@ -347,18 +347,18 @@ func TestGetColumns(t *testing.T) {
 	obj := myStruct{}
 	meta := NewColumnCollectionFromInstance(obj)
 
-	a.NotNil(meta.Columns)
-	a.NotEmpty(meta.Columns)
+	a.NotNil(meta.Columns())
+	a.NotEmpty(meta.Columns())
 
-	a.Equal(4, len(meta.Columns))
+	a.Equal(4, meta.Len())
 
 	readOnlyColumns := meta.ReadOnly()
-	a.Len(readOnlyColumns.Columns, 1)
+	a.Len(readOnlyColumns.Columns(), 1)
 
 	firstOrDefault := meta.FirstOrDefault()
 	a.NotNil(firstOrDefault)
 
-	firstCol := meta.Columns[0]
+	firstCol := meta.FirstOrDefault()
 	a.Equal("my_struct", firstCol.TableName)
 	a.Equal("PrimaryKeyCol", firstCol.FieldName)
 	a.Equal("primary_key_column", firstCol.ColumnName)
@@ -367,21 +367,21 @@ func TestGetColumns(t *testing.T) {
 	a.False(firstCol.IsNullable)
 	a.False(firstCol.IsReadOnly)
 
-	secondCol := meta.Columns[1]
+	secondCol := meta.Columns()[1]
 	a.Equal("inferredname", secondCol.ColumnName)
 	a.False(secondCol.IsPrimaryKey)
 	a.False(secondCol.IsSerial)
 	a.False(secondCol.IsNullable)
 	a.False(secondCol.IsReadOnly)
 
-	thirdCol := meta.Columns[2]
+	thirdCol := meta.Columns()[2]
 	a.Equal("nullable", thirdCol.ColumnName)
 	a.False(thirdCol.IsPrimaryKey)
 	a.False(thirdCol.IsSerial)
 	a.True(thirdCol.IsNullable)
 	a.False(thirdCol.IsReadOnly)
 
-	fourthCol := meta.Columns[3]
+	fourthCol := meta.Columns()[3]
 	a.Equal("inferredwithflags", fourthCol.ColumnName)
 	a.False(fourthCol.IsPrimaryKey)
 	a.False(fourthCol.IsSerial)
@@ -396,7 +396,7 @@ func TestSetValue(t *testing.T) {
 	var value interface{}
 	value = 10
 	meta := NewColumnCollectionFromInstance(obj)
-	pk := meta.Columns[0]
+	pk := meta.Columns()[0]
 	a.Nil(pk.SetValue(&obj, value))
 	a.Equal(10, obj.PrimaryKeyCol)
 }
@@ -406,7 +406,7 @@ func TestGetValue(t *testing.T) {
 	obj := myStruct{PrimaryKeyCol: 5, InferredName: "Hello."}
 
 	meta := NewColumnCollectionFromInstance(obj)
-	pk := meta.PrimaryKeys().Columns[0]
+	pk := meta.PrimaryKeys().FirstOrDefault()
 	value := pk.GetValue(&obj)
 	a.NotNil(value)
 	a.Equal(5, value)
