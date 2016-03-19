@@ -1329,15 +1329,15 @@ func makeSliceOfType(t reflect.Type) interface{} {
 
 // Populate puts the contents of a sql.Rows object into a mapped object using magic reflection.
 func Populate(object DatabaseMapped, row *sql.Rows) error {
+	if populatable, isPopulatable := object.(Populatable); isPopulatable {
+		return populatable.Populate(row)
+	}
+
 	return PopulateByName(object, row, NewColumnCollectionFromInstance(object))
 }
 
 // PopulateByName sets the values of an object from the values of a sql.Rows object using column names.
 func PopulateByName(object DatabaseMapped, row *sql.Rows, cols *ColumnCollection) error {
-	if populatable, isPopulatable := object.(Populatable); isPopulatable {
-		return populatable.Populate(row)
-	}
-
 	rowColumns, rowColumnsErr := row.Columns()
 
 	if rowColumnsErr != nil {
