@@ -202,8 +202,15 @@ func (c Column) GetValue(object DatabaseMapped) interface{} {
 // Column Collection
 // --------------------------------------------------------------------------------
 
-// NewColumnCollection creates a column lookup for a slice of columns.
-func NewColumnCollection(columns []Column) *ColumnCollection {
+// func NewColumnCollection() *ColumnCollection { return &ColumnCollection{lookup: map[string]*Column} }
+
+// NewColumnCollectionWithPrefix makes a new column collection with a column prefix.
+func NewColumnCollectionWithPrefix(columnPrefix string) *ColumnCollection {
+	return &ColumnCollection{lookup: map[string]*Column{}, columnPrefix: columnPrefix}
+}
+
+// NewColumnCollectionFromColumns creates a column lookup for a slice of columns.
+func NewColumnCollectionFromColumns(columns []Column) *ColumnCollection {
 	cc := ColumnCollection{columns: columns}
 	lookup := make(map[string]*Column)
 	for i := 0; i < len(columns); i++ {
@@ -278,70 +285,89 @@ func (cc *ColumnCollection) WithColumnPrefix(prefix string) *ColumnCollection {
 	return cc
 }
 
+// Add adds a column.
+func (cc *ColumnCollection) Add(c Column) {
+	cc.columns = append(cc.columns, c)
+	cc.lookup[c.ColumnName] = &c
+}
+
 // PrimaryKeys are columns we use as where predicates and can't update.
 func (cc ColumnCollection) PrimaryKeys() *ColumnCollection {
-	var cols []Column
+	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
+	newCC.columnPrefix = cc.columnPrefix
+
 	for _, c := range cc.columns {
 		if c.IsPrimaryKey {
-			cols = append(cols, c)
+			newCC.Add(c)
 		}
 	}
-	return NewColumnCollection(cols)
+
+	return newCC
 }
 
 // NotPrimaryKeys are columns we can update.
 func (cc ColumnCollection) NotPrimaryKeys() *ColumnCollection {
-	var cols []Column
+	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
+
 	for _, c := range cc.columns {
 		if !c.IsPrimaryKey {
-			cols = append(cols, c)
+			newCC.Add(c)
 		}
 	}
-	return NewColumnCollection(cols)
+
+	return newCC
 }
 
 // Serials are columns we have to return the id of.
 func (cc ColumnCollection) Serials() *ColumnCollection {
-	var cols []Column
+	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
+
 	for _, c := range cc.columns {
 		if c.IsSerial {
-			cols = append(cols, c)
+			newCC.Add(c)
 		}
 	}
-	return NewColumnCollection(cols)
+
+	return newCC
 }
 
 // NotSerials are columns we don't have to return the id of.
 func (cc ColumnCollection) NotSerials() *ColumnCollection {
-	var cols []Column
+	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
+
 	for _, c := range cc.columns {
 		if !c.IsSerial {
-			cols = append(cols, c)
+			newCC.Add(c)
 		}
 	}
-	return NewColumnCollection(cols)
+
+	return newCC
 }
 
 // ReadOnly are columns that we don't have to insert upon Create().
 func (cc ColumnCollection) ReadOnly() *ColumnCollection {
-	var cols []Column
+	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
+
 	for _, c := range cc.columns {
 		if c.IsReadOnly {
-			cols = append(cols, c)
+			newCC.Add(c)
 		}
 	}
-	return NewColumnCollection(cols)
+
+	return newCC
 }
 
 // NotReadOnly are columns that we have to insert upon Create().
 func (cc ColumnCollection) NotReadOnly() *ColumnCollection {
-	var cols []Column
+	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
+
 	for _, c := range cc.columns {
 		if !c.IsReadOnly {
-			cols = append(cols, c)
+			newCC.Add(c)
 		}
 	}
-	return NewColumnCollection(cols)
+
+	return newCC
 }
 
 // ColumnNames returns the string names for all the columns in the collection.
@@ -420,7 +446,7 @@ func (cc ColumnCollection) ConcatWith(other *ColumnCollection) *ColumnCollection
 	var total []Column
 	total = append(total, cc.columns...)
 	total = append(total, other.columns...)
-	return NewColumnCollection(total)
+	return NewColumnCollectionFromColumns(total)
 }
 
 // --------------------------------------------------------------------------------
