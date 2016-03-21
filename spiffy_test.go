@@ -415,9 +415,9 @@ func TestGetValue(t *testing.T) {
 func TestMakeCsvTokens(t *testing.T) {
 	a := assert.New(t)
 
-	one := makeCsvTokens(1)
-	two := makeCsvTokens(2)
-	three := makeCsvTokens(3)
+	one := ParamTokensCSV(1)
+	two := ParamTokensCSV(2)
+	three := ParamTokensCSV(3)
 
 	a.Equal("$1", one)
 	a.Equal("$1,$2", two)
