@@ -18,6 +18,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const (
+	DBAliasNilError = "DbConnection is nil; did you set up a DbAlias for your project?"
+)
+
 var metaCacheLock = sync.Mutex{}
 var metaCache map[reflect.Type]*ColumnCollection
 
@@ -842,7 +846,7 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 // Prepare prepares a new statement for the connection.
 func (dbAlias *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
 	if dbAlias == nil {
-		return nil, exception.New("DbConnection is nil")
+		return nil, exception.New(DBAliasNilError)
 	}
 
 	if tx != nil {
@@ -913,6 +917,10 @@ func (dbAlias *DbConnection) ExecInTransaction(statement string, tx *sql.Tx, arg
 		}
 	}()
 
+	if dbAlias == nil {
+		return exception.New(DBAliasNilError)
+	}
+
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
 
@@ -943,8 +951,12 @@ func (dbAlias *DbConnection) Query(statement string, args ...interface{}) *Query
 
 // QueryInTransaction runs the selected statement in a transaction and returns a QueryResult.
 func (dbAlias *DbConnection) QueryInTransaction(statement string, tx *sql.Tx, args ...interface{}) (result *QueryResult) {
-	dbAlias.txLock()
 	result = &QueryResult{Conn: dbAlias}
+	if dbAlias == nil {
+		result.Error = exception.New(DBAliasNilError)
+		return
+	}
+	dbAlias.txLock()
 
 	stmt, stmtErr := dbAlias.Prepare(statement, tx)
 	if stmtErr != nil {
@@ -984,6 +996,10 @@ func (dbAlias *DbConnection) GetByIDInTransaction(object DatabaseMapped, tx *sql
 			err = exception.WrapMany(err, recoveryException)
 		}
 	}()
+
+	if dbAlias == nil {
+		return exception.New(DBAliasNilError)
+	}
 
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
@@ -1061,6 +1077,10 @@ func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql
 		}
 	}()
 
+	if dbAlias == nil {
+		return exception.New(DBAliasNilError)
+	}
+
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
 
@@ -1133,6 +1153,10 @@ func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.
 			err = exception.WrapMany(err, recoveryException)
 		}
 	}()
+
+	if dbAlias == nil {
+		return exception.New(DBAliasNilError)
+	}
 
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
@@ -1217,6 +1241,10 @@ func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.
 		}
 	}()
 
+	if dbAlias == nil {
+		return exception.New(DBAliasNilError)
+	}
+
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
 
@@ -1273,6 +1301,10 @@ func (dbAlias *DbConnection) ExistsInTransaction(object DatabaseMapped, tx *sql.
 			err = exception.WrapMany(err, recoveryException)
 		}
 	}()
+
+	if dbAlias == nil {
+		return false, exception.New(DBAliasNilError)
+	}
 
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
@@ -1334,6 +1366,10 @@ func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.
 		}
 	}()
 
+	if dbAlias == nil {
+		return exception.New(DBAliasNilError)
+	}
+
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
 
@@ -1373,6 +1409,10 @@ func (dbAlias *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.
 // IsolateToTransaction causes all commands on the given connection to use a transaction.
 // NOTE: causes locking around the transaction.
 func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
+	if dbAlias == nil {
+		panic(DBAliasNilError)
+	}
+
 	dbAlias.TxLock.Lock()
 	defer dbAlias.TxLock.Unlock()
 	dbAlias.Tx = tx
@@ -1380,6 +1420,10 @@ func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
 
 // ReleaseIsolation reverses `IsolateToTransaction`
 func (dbAlias *DbConnection) ReleaseIsolation() {
+	if dbAlias == nil {
+		panic("`dbAlias` is nil; did you remember to set up the DbConnection in your project?")
+	}
+
 	dbAlias.TxLock.Lock()
 	defer dbAlias.TxLock.Unlock()
 	dbAlias.Tx = nil
@@ -1387,6 +1431,10 @@ func (dbAlias *DbConnection) ReleaseIsolation() {
 
 // IsIsolatedToTransaction returns if the connection is isolated to a transaction.
 func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
+	if dbAlias == nil {
+		panic(DBAliasNilError)
+	}
+
 	dbAlias.TxLock.Lock()
 	defer dbAlias.TxLock.Unlock()
 
@@ -1395,6 +1443,10 @@ func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
 
 // Commit commits a transaction if the connection is not currently isolated to one already.
 func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
+	if dbAlias == nil {
+		panic(DBAliasNilError)
+	}
+
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
 
@@ -1406,6 +1458,10 @@ func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
 
 // Rollback commits a transaction if the connection is not currently isolated to one already.
 func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
+	if dbAlias == nil {
+		panic(DBAliasNilError)
+	}
+
 	dbAlias.txLock()
 	defer dbAlias.txUnlock()
 
@@ -1416,20 +1472,20 @@ func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
 }
 
 func (dbAlias *DbConnection) txLock() {
+	if dbAlias == nil {
+		panic(DBAliasNilError)
+	}
+
 	if dbAlias.Tx != nil {
 		dbAlias.TxLock.Lock()
 	}
 }
 
-func prefixLines(lines string, with string) string {
-	newLines := []string{}
-	for _, line := range strings.Split(lines, "\n") {
-		newLines = append(newLines, fmt.Sprintf("%s%s", with, line))
-	}
-	return strings.Join(newLines, "\n")
-}
-
 func (dbAlias *DbConnection) txUnlock() {
+	if dbAlias == nil {
+		panic(DBAliasNilError)
+	}
+
 	if dbAlias.Tx != nil {
 		dbAlias.TxLock.Unlock()
 	}
