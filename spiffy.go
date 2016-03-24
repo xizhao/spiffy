@@ -1388,6 +1388,28 @@ func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
 	return dbAlias.Tx != nil
 }
 
+// Commit commits a transaction if the connection is not currently isolated to one already.
+func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
+	dbAlias.txLock()
+	defer dbAlias.txUnlock()
+
+	if dbAlias.Tx != nil {
+		return nil
+	}
+	return tx.Commit()
+}
+
+// Rollback commits a transaction if the connection is not currently isolated to one already.
+func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
+	dbAlias.txLock()
+	defer dbAlias.txUnlock()
+
+	if dbAlias.Tx != nil {
+		return nil
+	}
+	return tx.Rollback()
+}
+
 func (dbAlias *DbConnection) txLock() {
 	if dbAlias.Tx != nil {
 		dbAlias.TxLock.Lock()
