@@ -567,38 +567,42 @@ func TestMultipleQueriesPerTransaction(t *testing.T) {
 	a.Nil(err)
 	defer tx.Rollback()
 
+	DefaultDb().IsolateToTransaction(tx)
+	defer DefaultDb().ReleaseIsolation()
+
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 
 	a.NotNil(DefaultDb().Connection)
+	a.NotNil(DefaultDb().Tx)
 
 	err = seedObjects(10, tx)
 	a.Nil(err)
 
 	go func() {
 		defer wg.Done()
-		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
 		a.Nil(err)
 		a.True(hasRows)
 	}()
 
 	go func() {
 		defer wg.Done()
-		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
 		a.Nil(err)
 		a.True(hasRows)
 	}()
 
 	go func() {
 		defer wg.Done()
-		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		hasRows, err := DefaultDb().Query("select * from bench_object").Any()
 		a.Nil(err)
 		a.True(hasRows)
 	}()
 
 	wg.Wait()
 
-	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+	hasRows, err := DefaultDb().Query("select * from bench_object").Any()
 	a.Nil(err)
 	a.True(hasRows)
 }
