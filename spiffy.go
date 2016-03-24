@@ -725,6 +725,7 @@ func NewUnauthenticatedDbConnection(host, schema string) *DbConnection {
 	conn.Password = ""
 	conn.SSLMode = "disable"
 	conn.MetaLock = sync.Mutex{}
+	conn.TxLock = sync.Mutex{}
 	return conn
 }
 
@@ -737,6 +738,7 @@ func NewDbConnection(host, schema, username, password string) *DbConnection {
 	conn.Password = password
 	conn.SSLMode = "disable"
 	conn.MetaLock = sync.Mutex{}
+	conn.TxLock = sync.Mutex{}
 	return conn
 }
 
@@ -745,6 +747,7 @@ func NewDbConnectionFromDSN(dsn string) *DbConnection {
 	conn := &DbConnection{}
 	conn.DSN = dsn
 	conn.MetaLock = sync.Mutex{}
+	conn.TxLock = sync.Mutex{}
 	return conn
 }
 
@@ -757,6 +760,7 @@ func NewSSLDbConnection(host, schema, username, password, sslMode string) *DbCon
 	conn.Password = password
 	conn.SSLMode = sslMode
 	conn.MetaLock = sync.Mutex{}
+	conn.TxLock = sync.Mutex{}
 	return conn
 }
 
@@ -1385,6 +1389,7 @@ func (dbAlias *DbConnection) ReleaseIsolation() {
 func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
 	dbAlias.TxLock.Lock()
 	defer dbAlias.TxLock.Unlock()
+
 	return dbAlias.Tx != nil
 }
 
