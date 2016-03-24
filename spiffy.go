@@ -1412,12 +1412,15 @@ func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
 
 func (dbAlias *DbConnection) txLock() {
 	if dbAlias.Tx != nil {
+		fmt.Printf("SPIFFY :: ACQUIRING TX LOCK\n")
+		fmt.Printf("SPIFFY :: LOCK LOCATION: %s\n", exception.GetStackTrace())
 		dbAlias.TxLock.Lock()
 	}
 }
 
 func (dbAlias *DbConnection) txUnlock() {
 	if dbAlias.Tx != nil {
+		fmt.Printf("SPIFFY :: RELEASING TX LOCK\n")
 		dbAlias.TxLock.Unlock()
 	}
 }
