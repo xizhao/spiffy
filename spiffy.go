@@ -1412,8 +1412,6 @@ func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
 
 func (dbAlias *DbConnection) txLock() {
 	if dbAlias.Tx != nil {
-		fmt.Printf("<== SPIFFY :: ACQUIRING TX LOCK\n")
-		fmt.Printf("\tLOCATION:\n%s\n", prefixLines(exception.GetStackTrace(), "\t"))
 		dbAlias.TxLock.Lock()
 	}
 }
@@ -1428,7 +1426,6 @@ func prefixLines(lines string, with string) string {
 
 func (dbAlias *DbConnection) txUnlock() {
 	if dbAlias.Tx != nil {
-		fmt.Printf("SPIFFY :: RELEASING TX LOCK\n")
 		dbAlias.TxLock.Unlock()
 	}
 }
