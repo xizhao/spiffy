@@ -800,6 +800,10 @@ func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 		return nil, exception.New("`dbAlias` is uninitialized, cannot continue.")
 	}
 
+	if dbAlias.Tx != nil {
+		return dbAlias.Tx, nil
+	}
+
 	if dbAlias.Connection != nil {
 		tx, txErr := dbAlias.Connection.Begin()
 		return tx, exception.Wrap(txErr)

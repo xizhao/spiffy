@@ -645,3 +645,46 @@ func TestMultipleQueriesPerTransactionWithFailure(t *testing.T) {
 	a.NotNil(err)
 	a.False(hasRows)
 }
+
+func TestIsolateToTransaction(t *testing.T) {
+	a := assert.New(t)
+
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+
+	DefaultDb().IsolateToTransaction(tx)
+	defer DefaultDb().ReleaseIsolation()
+	a.NotNil(DefaultDb().Tx)
+	a.True(DefaultDb().IsIsolatedToTransaction())
+}
+
+func TestReleaseIsolation(t *testing.T) {
+	a := assert.New(t)
+
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+
+	DefaultDb().IsolateToTransaction(tx)
+	defer DefaultDb().ReleaseIsolation() //this has to happen regardless (panics etc.)
+
+	a.NotNil(DefaultDb().Tx)
+	a.True(DefaultDb().IsIsolatedToTransaction())
+
+	DefaultDb().ReleaseIsolation()
+	a.Nil(DefaultDb().Tx)
+	a.False(DefaultDb().IsIsolatedToTransaction())
+}
+
+func TestBeginReturnsIsolatedTransaction(t *testing.T) {
+	a := assert.New(t)
+
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+
+	DefaultDb().IsolateToTransaction(tx)
+	defer DefaultDb().ReleaseIsolation()
+
+	currentTx, err := DefaultDb().Begin()
+	a.Nil(err)
+	a.Equal(tx, currentTx)
+}
