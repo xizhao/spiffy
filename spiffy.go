@@ -742,7 +742,7 @@ func NewDbConnection(host, schema, username, password string) *DbConnection {
 	conn.Password = password
 	conn.SSLMode = "disable"
 	conn.MetaLock = sync.Mutex{}
-	conn.TxLock = sync.Mutex{}
+	conn.TxLock = sync.RWMutex{}
 	return conn
 }
 
@@ -751,7 +751,7 @@ func NewDbConnectionFromDSN(dsn string) *DbConnection {
 	conn := &DbConnection{}
 	conn.DSN = dsn
 	conn.MetaLock = sync.Mutex{}
-	conn.TxLock = sync.Mutex{}
+	conn.TxLock = sync.RWMutex{}
 	return conn
 }
 
@@ -764,7 +764,7 @@ func NewSSLDbConnection(host, schema, username, password, sslMode string) *DbCon
 	conn.Password = password
 	conn.SSLMode = sslMode
 	conn.MetaLock = sync.Mutex{}
-	conn.TxLock = sync.Mutex{}
+	conn.TxLock = sync.RWMutex{}
 	return conn
 }
 
@@ -780,7 +780,7 @@ type DbConnection struct {
 	MetaLock   sync.Mutex
 
 	Tx     *sql.Tx
-	TxLock sync.Mutex
+	TxLock sync.RWMutex
 }
 
 // CreatePostgresConnectionString returns a sql connection string from a given set of DbConnection parameters.
@@ -1435,8 +1435,8 @@ func (dbAlias *DbConnection) IsIsolatedToTransaction() bool {
 		panic(DBAliasNilError)
 	}
 
-	dbAlias.TxLock.Lock()
-	defer dbAlias.TxLock.Unlock()
+	dbAlias.TxLock.RLock()
+	defer dbAlias.TxLock.RUnlock()
 
 	return dbAlias.Tx != nil
 }
@@ -1447,12 +1447,10 @@ func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
 		panic(DBAliasNilError)
 	}
 
-	dbAlias.txLock()
-	defer dbAlias.txUnlock()
-
-	if dbAlias.Tx != nil {
+	if dbAlias.Tx == nil {
 		return nil
 	}
+
 	return tx.Commit()
 }
 
@@ -1461,9 +1459,6 @@ func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
 	if dbAlias == nil {
 		panic(DBAliasNilError)
 	}
-
-	dbAlias.txLock()
-	defer dbAlias.txUnlock()
 
 	if dbAlias.Tx != nil {
 		return nil
