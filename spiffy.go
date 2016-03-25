@@ -833,11 +833,11 @@ func (dbAlias *DbConnection) WrapInTransaction(action func(*sql.Tx) error) error
 	}
 	err = action(tx)
 	if err != nil {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+		if rollbackErr := dbAlias.Rollback(tx); rollbackErr != nil {
 			return exception.WrapMany(rollbackErr, err)
 		}
 		return exception.Wrap(err)
-	} else if commitErr := tx.Commit(); commitErr != nil {
+	} else if commitErr := dbAlias.Rollback(tx); commitErr != nil {
 		return exception.Wrap(commitErr)
 	}
 	return nil
