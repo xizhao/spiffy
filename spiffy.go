@@ -1447,10 +1447,9 @@ func (dbAlias *DbConnection) Commit(tx *sql.Tx) error {
 		panic(DBAliasNilError)
 	}
 
-	if dbAlias.Tx == nil {
+	if dbAlias.IsIsolatedToTransaction() {
 		return nil
 	}
-
 	return tx.Commit()
 }
 
@@ -1460,7 +1459,7 @@ func (dbAlias *DbConnection) Rollback(tx *sql.Tx) error {
 		panic(DBAliasNilError)
 	}
 
-	if dbAlias.Tx != nil {
+	if dbAlias.IsIsolatedToTransaction() {
 		return nil
 	}
 	return tx.Rollback()
