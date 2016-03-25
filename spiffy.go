@@ -729,7 +729,7 @@ func NewUnauthenticatedDbConnection(host, schema string) *DbConnection {
 	conn.Password = ""
 	conn.SSLMode = "disable"
 	conn.MetaLock = sync.Mutex{}
-	conn.TxLock = sync.Mutex{}
+	conn.TxLock = sync.RWMutex{}
 	return conn
 }
 
