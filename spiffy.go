@@ -1053,7 +1053,6 @@ func (dbAlias *DbConnection) Create(object DatabaseMapped) error {
 
 // CreateInTransaction writes an object to the database within a transaction.
 func (dbAlias *DbConnection) CreateInTransaction(object DatabaseMapped, tx *sql.Tx) (err error) {
-	fmt.Println("HERE!")
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
@@ -1174,7 +1173,7 @@ func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.
 
 	_, execErr := stmt.Exec(totalValues...)
 	if execErr != nil {
-		err = exception.Wrap(err)
+		err = exception.Wrap(execErr)
 		return
 	}
 
