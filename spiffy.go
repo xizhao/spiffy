@@ -1281,7 +1281,7 @@ func (dbAlias *DbConnection) UpdateInTransaction(object DatabaseMapped, tx *sql.
 
 	_, execErr := stmt.Exec(totalValues...)
 	if execErr != nil {
-		err = exception.Wrap(err)
+		err = exception.Wrap(execErr)
 		return
 	}
 
