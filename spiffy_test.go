@@ -63,7 +63,7 @@ func (b BenchObj) TableName() string {
 }
 
 func createTable(tx *sql.Tx) error {
-	createSQL := `CREATE TABLE bench_object (id serial not null, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
+	createSQL := `CREATE TABLE IF NOT EXISTS bench_object (id serial not null, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
 	return DefaultDb().ExecInTransaction(createSQL, tx)
 }
 
@@ -607,6 +607,7 @@ func TestMultipleQueriesPerTransaction(t *testing.T) {
 	a.True(hasRows)
 }
 
+// Note: this test assumes that `bench_object` DOES NOT EXIST.
 func TestMultipleQueriesPerTransactionWithFailure(t *testing.T) {
 	a := assert.New(t)
 	tx, err := DefaultDb().Begin()
