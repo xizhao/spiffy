@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	//DBAliasNilError is a common error
 	DBAliasNilError = "DbConnection is nil; did you set up a DbAlias for your project?"
 )
 
@@ -664,7 +665,7 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 		newObj, _ := MakeNew(sliceInnerType)
 
 		if isPopulatable {
-			popErr = (AsPopulatable(newObj)).Populate(q.Rows)
+			popErr = AsPopulatable(newObj).Populate(q.Rows)
 		} else {
 			popErr = PopulateByName(newObj, q.Rows, meta)
 		}
@@ -1048,7 +1049,7 @@ func (dbAlias *DbConnection) GetByIDInTransaction(object DatabaseMapped, tx *sql
 	var popErr error
 	if rows.Next() {
 		if IsPopulatable(object) {
-			popErr = (AsPopulatable(object)).Populate(rows)
+			popErr = AsPopulatable(object).Populate(rows)
 		} else {
 			popErr = PopulateInOrder(object, rows, standardCols)
 		}
@@ -1124,7 +1125,7 @@ func (dbAlias *DbConnection) GetAllInTransaction(collection interface{}, tx *sql
 		newObj, _ := MakeNew(t)
 
 		if isPopulatable {
-			popErr = (AsPopulatable(newObj)).Populate(rows)
+			popErr = AsPopulatable(newObj).Populate(rows)
 		} else {
 			popErr = PopulateInOrder(newObj, rows, meta)
 			if popErr != nil {
