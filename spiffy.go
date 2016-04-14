@@ -806,7 +806,7 @@ func (dbAlias *DbConnection) CreatePostgresConnectionString() string {
 // Begin starts a new transaction.
 func (dbAlias *DbConnection) Begin() (*sql.Tx, error) {
 	if dbAlias == nil {
-		return nil, exception.New("`dbAlias` is uninitialized, cannot continue.")
+		return nil, exception.New(DBAliasNilError)
 	}
 
 	if dbAlias.Tx != nil {
@@ -1422,7 +1422,7 @@ func (dbAlias *DbConnection) IsolateToTransaction(tx *sql.Tx) {
 // ReleaseIsolation reverses `IsolateToTransaction`
 func (dbAlias *DbConnection) ReleaseIsolation() {
 	if dbAlias == nil {
-		panic("`dbAlias` is nil; did you remember to set up the DbConnection in your project?")
+		panic(DBAliasNilError)
 	}
 
 	dbAlias.TxLock.Lock()
