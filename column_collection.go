@@ -105,6 +105,11 @@ func (cc *ColumnCollection) Add(c Column) {
 	cc.lookup[c.ColumnName] = &c
 }
 
+// Copy copies the metadata.
+func (cc ColumnCollection) Copy() *ColumnCollection {
+	return NewColumnCollectionWithPrefix(cc.columnPrefix)
+}
+
 // PrimaryKeys are columns we use as where predicates and can't update.
 func (cc ColumnCollection) PrimaryKeys() *ColumnCollection {
 	newCC := NewColumnCollectionWithPrefix(cc.columnPrefix)
