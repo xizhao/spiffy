@@ -9,7 +9,7 @@ import (
 
 var (
 	metaCacheLock sync.Mutex
-	metaCache     map[reflect.Type]*ColumnCollection
+	metaCache     map[string]*ColumnCollection
 )
 
 // --------------------------------------------------------------------------------
@@ -47,13 +47,13 @@ func NewColumnCollectionFromType(t reflect.Type) *ColumnCollection {
 	defer metaCacheLock.Unlock()
 
 	if metaCache == nil {
-		metaCache = map[reflect.Type]*ColumnCollection{}
+		metaCache = map[string]*ColumnCollection{}
 	}
 
-	if _, ok := metaCache[t]; !ok {
-		metaCache[t] = GenerateColumnCollectionForType(t)
+	if _, ok := metaCache[t.Name()]; !ok {
+		metaCache[t.Name()] = GenerateColumnCollectionForType(t)
 	}
-	return metaCache[t]
+	return metaCache[t.Name()]
 }
 
 // GenerateColumnCollectionForType reflects a new column collection from a reflect.Type.
