@@ -69,3 +69,25 @@ func TestGetColumns(t *testing.T) {
 	a.False(fourthCol.IsNullable)
 	a.True(fourthCol.IsReadOnly)
 }
+
+func TestColumnCollectionCopy(t *testing.T) {
+	assert := assert.New(t)
+
+	obj := myStruct{}
+	meta := CachedColumnCollectionFromInstance(obj)
+	newMeta := meta.Copy()
+	assert.False(meta == newMeta, "These pointers should not be the same.")
+	newMeta.columnPrefix = "foo_"
+	assert.NotEqual(meta.columnPrefix, newMeta.columnPrefix)
+}
+
+func TestColumnCollectionWithColumnPrefix(t *testing.T) {
+	assert := assert.New(t)
+
+	obj := myStruct{}
+	meta := CachedColumnCollectionFromInstance(obj)
+	newMeta := meta.WithColumnPrefix("foo_")
+	assert.Equal("foo_", newMeta.columnPrefix)
+	assert.False(meta == newMeta, "These pointers should not be the same.")
+	assert.NotEqual(meta.columnPrefix, newMeta.columnPrefix)
+}
