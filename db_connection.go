@@ -393,7 +393,7 @@ func (dbc *DbConnection) GetAllInTransaction(collection interface{}, tx *sql.Tx)
 	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
 	tableName, _ := TableName(t)
-	meta := NewColumnCollectionFromType(t).NotReadOnly()
+	meta := NewColumnCollectionFromType(tableName, t).NotReadOnly()
 
 	columnNames := meta.ColumnNames()
 	sqlStmt := fmt.Sprintf("SELECT %s FROM %s", strings.Join(columnNames, ","), tableName)

@@ -207,9 +207,9 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 	sliceInnerType := reflectSliceType(collection)
 	collectionValue := reflectValue(collection)
 
-	meta := NewColumnCollectionFromType(sliceInnerType)
-
 	v, _ := MakeNew(sliceInnerType)
+	meta := NewColumnCollectionFromType(v.TableName(), sliceInnerType)
+
 	isPopulatable := IsPopulatable(v)
 
 	var popErr error

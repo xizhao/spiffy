@@ -37,12 +37,12 @@ func NewColumnCollectionFromColumns(columns []Column) *ColumnCollection {
 
 // NewColumnCollectionFromInstance reflects an object instance into a new column collection.
 func NewColumnCollectionFromInstance(object DatabaseMapped) *ColumnCollection {
-	return NewColumnCollectionFromType(reflect.TypeOf(object))
+	return NewColumnCollectionFromType(object.TableName(), reflect.TypeOf(object))
 }
 
 // NewColumnCollectionFromType reflects a reflect.Type into a column collection.
 // The results of this are cached for speed.
-func NewColumnCollectionFromType(t reflect.Type) *ColumnCollection {
+func NewColumnCollectionFromType(identifier string, t reflect.Type) *ColumnCollection {
 	metaCacheLock.Lock()
 	defer metaCacheLock.Unlock()
 
@@ -50,10 +50,10 @@ func NewColumnCollectionFromType(t reflect.Type) *ColumnCollection {
 		metaCache = map[string]*ColumnCollection{}
 	}
 
-	if _, ok := metaCache[t.Name()]; !ok {
-		metaCache[t.Name()] = GenerateColumnCollectionForType(t)
+	if _, ok := metaCache[identifier]; !ok {
+		metaCache[identifier] = GenerateColumnCollectionForType(t)
 	}
-	return metaCache[t.Name()]
+	return metaCache[identifier]
 }
 
 // GenerateColumnCollectionForType reflects a new column collection from a reflect.Type.
@@ -241,7 +241,6 @@ func (cc ColumnCollection) ColumnValues(instance interface{}) []interface{} {
 		} else {
 			values = append(values, valueField.Interface())
 		}
-
 	}
 	return values
 }
