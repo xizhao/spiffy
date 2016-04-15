@@ -35,14 +35,14 @@ func NewColumnCollectionFromColumns(columns []Column) *ColumnCollection {
 	return &cc
 }
 
-// NewColumnCollectionFromInstance reflects an object instance into a new column collection.
-func NewColumnCollectionFromInstance(object DatabaseMapped) *ColumnCollection {
-	return NewColumnCollectionFromType(object.TableName(), reflect.TypeOf(object))
+// CachedColumnCollectionFromInstance reflects an object instance into a new column collection.
+func CachedColumnCollectionFromInstance(object DatabaseMapped) *ColumnCollection {
+	return CachedColumnCollectionFromType(object.TableName(), reflect.TypeOf(object))
 }
 
-// NewColumnCollectionFromType reflects a reflect.Type into a column collection.
+// CachedColumnCollectionFromType reflects a reflect.Type into a column collection.
 // The results of this are cached for speed.
-func NewColumnCollectionFromType(identifier string, t reflect.Type) *ColumnCollection {
+func CachedColumnCollectionFromType(identifier string, t reflect.Type) *ColumnCollection {
 	metaCacheLock.Lock()
 	defer metaCacheLock.Unlock()
 

@@ -26,7 +26,7 @@ func TestGetColumns(t *testing.T) {
 	a.Nil(firstOrDefaultNil)
 
 	obj := myStruct{}
-	meta := NewColumnCollectionFromInstance(obj)
+	meta := CachedColumnCollectionFromInstance(obj)
 
 	a.NotNil(meta.Columns())
 	a.NotEmpty(meta.Columns())
