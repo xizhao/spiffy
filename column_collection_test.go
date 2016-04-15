@@ -6,12 +6,19 @@ import (
 	"github.com/blendlabs/go-assert"
 )
 
+type subStruct struct {
+	Foo string `json:"foo"`
+}
+
 type myStruct struct {
-	PrimaryKeyCol     int    `json:"pk" db:"primary_key_column,pk,serial"`
-	InferredName      string `json:"normal"`
-	Excluded          string `json:"-" db:"-"`
-	NullableCol       string `json:"not_nullable" db:"nullable,nullable"`
-	InferredWithFlags string `db:",readonly"`
+	PrimaryKeyCol     int       `json:"pk" db:"primary_key_column,pk,serial"`
+	InferredName      string    `json:"normal"`
+	Excluded          string    `json:"-" db:"-"`
+	NullableCol       string    `json:"not_nullable" db:"nullable,nullable"`
+	InferredWithFlags string    `db:",readonly"`
+	BigIntColumn      int64     `db:"big_int"`
+	PointerColumn     *int      `db:"pointer_col"`
+	JSONColumn        subStruct `db:"json_col,json"`
 }
 
 func (m myStruct) TableName() string {
@@ -31,7 +38,7 @@ func TestGetColumns(t *testing.T) {
 	a.NotNil(meta.Columns())
 	a.NotEmpty(meta.Columns())
 
-	a.Equal(4, meta.Len())
+	a.Equal(7, meta.Len())
 
 	readOnlyColumns := meta.ReadOnly()
 	a.Len(readOnlyColumns.Columns(), 1)
