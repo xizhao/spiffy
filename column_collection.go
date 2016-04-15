@@ -93,21 +93,24 @@ func (cc *ColumnCollection) Len() int {
 	return len(cc.columns)
 }
 
-// WithColumnPrefix applies a column prefix to column names.
-func (cc *ColumnCollection) WithColumnPrefix(prefix string) *ColumnCollection {
-	cc.columnPrefix = prefix
-	return cc
-}
-
 // Add adds a column.
 func (cc *ColumnCollection) Add(c Column) {
 	cc.columns = append(cc.columns, c)
 	cc.lookup[c.ColumnName] = &c
 }
 
+// WithColumnPrefix applies a column prefix to column names.
+func (cc ColumnCollection) WithColumnPrefix(prefix string) *ColumnCollection {
+	newCC := NewColumnCollectionFromColumns(cc.columns)
+	newCC.columnPrefix = prefix
+	return newCC
+}
+
 // Copy copies the metadata.
 func (cc ColumnCollection) Copy() *ColumnCollection {
-	return NewColumnCollectionWithPrefix(cc.columnPrefix)
+	newCC := NewColumnCollectionFromColumns(cc.columns)
+	newCC.columnPrefix = cc.columnPrefix
+	return newCC
 }
 
 // PrimaryKeys are columns we use as where predicates and can't update.
