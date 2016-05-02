@@ -6,17 +6,22 @@ import (
 	"github.com/blendlabs/spiffy"
 )
 
-// Statement creates a statement block.
-func Statement(statements ...string) StatementBlock {
-	return StatementBlock(statements)
+// Body is an alias to NewStatement.
+func Body(statements ...string) Statement {
+	return NewStatement(statements...)
 }
 
-// StatementBlock is an atomic unit of work. It can be multiple individual sql statements.
-// This is what is run by the operation gates (if index exists / if column exists etc.)
-type StatementBlock []string
+// NewStatement creates a statement block.
+func NewStatement(statements ...string) Statement {
+	return Statement(statements)
+}
 
-// Run executes the statement block
-func (s StatementBlock) Run(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
+// Statement is an atomic unit of work. It can be multiple individual sql statements.
+// This is what is run by the operation gates (if index exists / if column exists etc.)
+type Statement []string
+
+// Invoke executes the statement block
+func (s Statement) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 	for _, step := range s {
 		err = c.ExecInTransaction(step, tx)
 		if err != nil {
