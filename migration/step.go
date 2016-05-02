@@ -7,12 +7,12 @@ import (
 )
 
 // Op is an alias to NewOperation.
-func Op(action Action, body Statement, args ...string) Invocable {
+func Op(action Action, body Statement, args ...string) Migration {
 	return NewOperation(action, body, args...)
 }
 
 // NewOperation creates a new invocable.
-func NewOperation(action Action, body Statement, args ...string) Invocable {
+func NewOperation(action Action, body Statement, args ...string) Migration {
 	return &Operation{
 		Action: action,
 		Body:   body,

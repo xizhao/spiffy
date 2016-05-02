@@ -1,4 +1,4 @@
-package example
+package main
 
 import (
 	"os"
@@ -11,33 +11,28 @@ import (
 func main() {
 	initDb()
 
-	op1 := migration.New(
+	m := migration.New(
 		migration.Op(
 			migration.CreateTable,
-			migration.Statement(
+			migration.Body(
 				"CREATE TABLE example_table (id int not null, name varchar(32) not null);",
 				"ALTER TABLE example_table ADD CONSTRAINT pk_example_table_id PRIMARY KEY(id);",
 			),
 			"example_table",
 		),
-	)
-
-	op2 := migration.New(
 		migration.Op(
 			migration.CreateColumn,
-			migration.Statement(
+			migration.Body(
 				"ALTER TABLE example_table ADD foo varchar(64);",
 			),
 			"example_table", "foo",
 		),
 	)
 
-	suite := migration.New(op1, op2)
-	err := suite.Test(spiffy.DefaultDb())
+	err := m.Test(spiffy.DefaultDb())
 	if err != nil {
-		suite.Apply(spiffy.DefaultDb())
+		m.Apply(spiffy.DefaultDb())
 	}
-
 }
 
 func initDb() {
