@@ -11,7 +11,8 @@ func Statement(statements ...string) StatementBlock {
 	return StatementBlock(statements)
 }
 
-// StatementBlock is an atomic unit of work. It can be multiple sql statements.
+// StatementBlock is an atomic unit of work. It can be multiple individual sql statements.
+// This is what is run by the operation gates (if index exists / if column exists etc.)
 type StatementBlock []string
 
 // Run executes the statement block

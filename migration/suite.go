@@ -2,9 +2,29 @@ package migration
 
 import (
 	"database/sql"
+	"sync"
 
 	"github.com/blendlabs/spiffy"
 )
+
+var (
+	defaultSuite     *SuiteRunner
+	defaultSuiteLock sync.RWMutex
+)
+
+// Register adds a process to the default suite.
+func Register(process Process) {
+	defaultSuiteLock.Lock()
+	defer defaultSuiteLock.Unlock()
+	defaultSuite.Suite = append(defaultSuite.Suite, process)
+}
+
+// Default passes the default suite to the action method. It acquires a read lock wrapping the action.
+func Default(action func(*SuiteRunner) error) error {
+	defaultSuiteLock.RLock()
+	defer defaultSuiteLock.RUnlock()
+	return action(defaultSuite)
+}
 
 // Suite creates a new migration suite.
 func Suite(migrations ...Process) *SuiteRunner {
