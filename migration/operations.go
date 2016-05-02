@@ -2,6 +2,7 @@ package migration
 
 import (
 	"database/sql"
+	"strings"
 
 	"github.com/blendlabs/spiffy"
 )
@@ -88,20 +89,20 @@ func AlterIndex(c *spiffy.DbConnection, tx *sql.Tx, statement StatementBlock, ar
 
 // TableExists returns if a table exists on the given connection.
 func TableExists(c *spiffy.DbConnection, tx *sql.Tx, tableName string) (bool, error) {
-	return c.QueryInTransaction(`SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = $1`, tx, tableName).Any()
+	return c.QueryInTransaction(`SELECT 1 FROM pg_catalog.pg_tables WHERE tablename = $1`, tx, strings.ToLower(tableName)).Any()
 }
 
 // ColumnExists returns if a column exists on a table on the given connection.
 func ColumnExists(c *spiffy.DbConnection, tx *sql.Tx, tableName, columnName string) (bool, error) {
-	return c.QueryInTransaction(`SELECT 1 FROM information_schema.columns i WHERE i.table_name = $1 and i.column_name = $2`, tx, tableName, columnName).Any()
+	return c.QueryInTransaction(`SELECT 1 FROM information_schema.columns i WHERE i.table_name = $1 and i.column_name = $2`, tx, strings.ToLower(tableName), strings.ToLower(columnName)).Any()
 }
 
 // ConstraintExists returns if a constraint exists on a table on the given connection.
 func ConstraintExists(c *spiffy.DbConnection, tx *sql.Tx, constraintName string) (bool, error) {
-	return c.QueryInTransaction(`SELECT 1 FROM pg_constraint WHERE conname = $1`, tx, constraintName).Any()
+	return c.QueryInTransaction(`SELECT 1 FROM pg_constraint WHERE conname = $1`, tx, strings.ToLower(constraintName)).Any()
 }
 
 // IndexExists returns if a index exists on a table on the given connection.
 func IndexExists(c *spiffy.DbConnection, tx *sql.Tx, tableName, indexName string) (bool, error) {
-	return c.QueryInTransaction(`SELECT 1 FROM pg_catalog.pg_index ix join pg_catalog.pg_class t on t.oid = ix.indrelid join pg_catalog.pg_class i on i.oid = ix.indexrelid WHERE t.relname = $1 and i.relname = $2 and t.relkind = 'r'`, tx, tableName, indexName).Any()
+	return c.QueryInTransaction(`SELECT 1 FROM pg_catalog.pg_index ix join pg_catalog.pg_class t on t.oid = ix.indrelid join pg_catalog.pg_class i on i.oid = ix.indexrelid WHERE t.relname = $1 and i.relname = $2 and t.relkind = 'r'`, tx, strings.ToLower(tableName), strings.ToLower(indexName)).Any()
 }

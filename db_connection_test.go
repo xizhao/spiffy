@@ -45,50 +45,51 @@ func TestConnectionSanityCheck(t *testing.T) {
 
 func TestPrepare(t *testing.T) {
 	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
-	createTableEsrr := createTable(tx)
-	a.Nil(createTableEsrr)
-	a.Nil(tx.Rollback())
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	err = createTable(tx)
+	a.Nil(err)
 }
 
 func TestQuery(t *testing.T) {
-	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
-	defer func() {
-		a.Nil(tx.Rollback())
-	}()
+	t.Skip()
 
-	seedErr := seedObjects(100, tx)
-	a.Nil(seedErr)
+	a := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	err = seedObjects(100, tx)
+	a.Nil(err)
 
 	objs := []benchObj{}
-	queryErr := DefaultDb().QueryInTransaction("select * from bench_object", tx).OutMany(&objs)
+	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).OutMany(&objs)
 
-	a.Nil(queryErr)
+	a.Nil(err)
 	a.NotEmpty(objs)
 
 	all := []benchObj{}
-	allErr := DefaultDb().GetAllInTransaction(&all, tx)
-	a.Nil(allErr)
+	err = DefaultDb().GetAllInTransaction(&all, tx)
+	a.Nil(err)
 	a.Equal(len(objs), len(all))
 
 	obj := benchObj{}
-	singleQueryErr := DefaultDb().QueryInTransaction("select * from bench_object limit 1", tx).Out(&obj)
-	a.Nil(singleQueryErr)
+	err = DefaultDb().QueryInTransaction("select * from bench_object limit 1", tx).Out(&obj)
+	a.Nil(err)
 	a.NotEqual(obj.ID, 0)
 
 	var id int
-	scanErr := DefaultDb().QueryInTransaction("select id from bench_object limit 1", tx).Scan(&id)
-	a.Nil(scanErr)
+	err = DefaultDb().QueryInTransaction("select id from bench_object limit 1", tx).Scan(&id)
+	a.Nil(err)
 	a.NotEqual(id, 0)
 }
 
 func TestCRUDMethods(t *testing.T) {
 	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
 	defer tx.Rollback()
 
 	seedErr := seedObjects(100, tx)
@@ -146,14 +147,12 @@ func TestDbConnectionOpen(t *testing.T) {
 
 func TestExec(t *testing.T) {
 	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
-	defer func() {
-		a.Nil(tx.Rollback())
-	}()
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
 
-	execErr := DefaultDb().ExecInTransaction("select 'ok!'", tx)
-	a.Nil(execErr)
+	err = DefaultDb().ExecInTransaction("select 'ok!'", tx)
+	a.Nil(err)
 }
 
 func TestIsolateToTransaction(t *testing.T) {
@@ -161,6 +160,7 @@ func TestIsolateToTransaction(t *testing.T) {
 
 	tx, err := DefaultDb().Begin()
 	a.Nil(err)
+	defer tx.Rollback()
 
 	DefaultDb().IsolateToTransaction(tx)
 	defer DefaultDb().ReleaseIsolation()
@@ -173,6 +173,7 @@ func TestReleaseIsolation(t *testing.T) {
 
 	tx, err := DefaultDb().Begin()
 	a.Nil(err)
+	defer tx.Rollback()
 
 	DefaultDb().IsolateToTransaction(tx)
 	defer DefaultDb().ReleaseIsolation() //this has to happen regardless (panics etc.)
@@ -190,6 +191,7 @@ func TestBeginReturnsIsolatedTransaction(t *testing.T) {
 
 	tx, err := DefaultDb().Begin()
 	a.Nil(err)
+	defer tx.Rollback()
 
 	DefaultDb().IsolateToTransaction(tx)
 	defer DefaultDb().ReleaseIsolation()
