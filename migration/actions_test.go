@@ -12,26 +12,26 @@ import (
 
 func createTestTable(tableName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE TABLE %s (id int, name varchar(32));", tableName)
-	op := Op(CreateTable, Body(body), tableName)
-	return op.Invoke(spiffy.DefaultDb(), tx)
+	step := Step(CreateTable, Body(body), tableName)
+	return step.Invoke(spiffy.DefaultDb(), tx)
 }
 
 func createTestColumn(tableName, columnName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD %s varchar(32);", tableName, columnName)
-	op := Op(CreateColumn, Body(body), tableName, columnName)
-	return op.Invoke(spiffy.DefaultDb(), tx)
+	step := Step(CreateColumn, Body(body), tableName, columnName)
+	return step.Invoke(spiffy.DefaultDb(), tx)
 }
 
 func createTestConstraint(tableName, constraintName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (name);", tableName, constraintName)
-	op := Op(CreateColumn, Body(body), tableName, constraintName)
-	return op.Invoke(spiffy.DefaultDb(), tx)
+	step := Step(CreateColumn, Body(body), tableName, constraintName)
+	return step.Invoke(spiffy.DefaultDb(), tx)
 }
 
 func createTestIndex(tableName, indexName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE INDEX %s ON %s (name);", indexName, tableName)
-	op := Op(CreateIndex, Body(body), tableName, indexName)
-	return op.Invoke(spiffy.DefaultDb(), tx)
+	step := Step(CreateIndex, Body(body), tableName, indexName)
+	return step.Invoke(spiffy.DefaultDb(), tx)
 }
 
 func TestCreateTable(t *testing.T) {
