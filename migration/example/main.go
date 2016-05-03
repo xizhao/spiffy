@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/blendlabs/go-util"
@@ -12,6 +13,7 @@ func main() {
 	initDb()
 
 	m := migration.New(
+		"test",
 		migration.Op(
 			migration.CreateTable,
 			migration.Body(
@@ -28,10 +30,13 @@ func main() {
 			"example_table", "foo",
 		),
 	)
+	m.SetLogger(migration.NewLogger())
 
 	err := m.Test(spiffy.DefaultDb())
-	if err != nil {
+	if err == nil {
 		m.Apply(spiffy.DefaultDb())
+	} else {
+		fmt.Printf("error with migration: %v\n", err)
 	}
 }
 

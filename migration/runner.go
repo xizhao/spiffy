@@ -4,23 +4,26 @@ import (
 	"database/sql"
 	"log"
 
+	"github.com/blendlabs/go-util"
 	"github.com/blendlabs/spiffy"
 )
 
-// New Creates a new migration that runs the sub-migrations in series.
-func New(migrations ...Migration) Migration {
-	return Series(migrations...)
+// Series is an alias to New.
+func Series(migrations ...Migration) Migration {
+	return New(util.StringEmpty, migrations...)
 }
 
-// Series creates a new migration series.
-func Series(migrations ...Migration) Migration {
+// New creates a new migration series.
+func New(name string, migrations ...Migration) Migration {
 	return &Runner{
+		Name:       name,
 		Migrations: migrations,
 	}
 }
 
 // Runner runs the migrations
 type Runner struct {
+	Name       string
 	Logger     *log.Logger
 	Migrations []Migration
 }
@@ -39,6 +42,10 @@ func (r Runner) Test(c *spiffy.DbConnection) (err error) {
 	defer func() {
 		err = tx.Rollback()
 	}()
+
+	setLoggerPhase(r.Logger, "test", r.Name)
+	defer setLoggerPhase(r.Logger, util.StringEmpty, util.StringEmpty)
+
 	err = r.Invoke(c, tx)
 	return
 }
@@ -52,6 +59,10 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 	defer func() {
 		err = tx.Commit()
 	}()
+
+	setLoggerPhase(r.Logger, "apply", r.Name)
+	defer setLoggerPhase(r.Logger, util.StringEmpty, util.StringEmpty)
+
 	err = r.Invoke(c, tx)
 	return
 }
@@ -59,6 +70,9 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 // Invoke runs the suite against a given connection and transaction.
 func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 	for _, m := range r.Migrations {
+		if r.Logger != nil {
+			m.SetLogger(r.Logger)
+		}
 		err = m.Invoke(c, tx)
 		if err != nil {
 			return err

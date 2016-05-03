@@ -3,7 +3,7 @@ package migration
 import "sync"
 
 var (
-	defaultRunner     *Runner
+	defaultRunner     = &Runner{}
 	defaultRunnerLock sync.RWMutex
 )
 

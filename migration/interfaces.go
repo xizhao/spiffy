@@ -8,7 +8,7 @@ import (
 )
 
 // Action is a step in a migration.
-type Action func(c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error
+type Action func(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error
 
 // Invocation is a function that can be run in the migration suite.
 type Invocation func(c *spiffy.DbConnection, tx *sql.Tx) error
@@ -25,6 +25,7 @@ type Loggable interface {
 
 // Migration is an Invocable that can tested before running.
 type Migration interface {
+	SetLogger(logger *log.Logger)
 	Test(c *spiffy.DbConnection) error
 	Apply(c *spiffy.DbConnection) error
 	Invoke(c *spiffy.DbConnection, tx *sql.Tx) error
