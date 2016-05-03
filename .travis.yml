@@ -26,4 +26,4 @@ before_script:
   - go get -u github.com/blendlabs/go-exception
 
 script: 
-  - DB_SCHEMA=travis_ci_test go test
+  - DB_SCHEMA=travis_ci_test go test ./...
