@@ -9,11 +9,6 @@ import (
 	"github.com/blendlabs/spiffy"
 )
 
-// Series is an alias to New.
-func Series(migrations ...Migration) Migration {
-	return New(util.StringEmpty, migrations...)
-}
-
 // New creates a new migration series.
 func New(name string, migrations ...Migration) Migration {
 	return &Runner{
