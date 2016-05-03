@@ -14,7 +14,7 @@ func main() {
 
 	m := migration.New(
 		"example_table",
-		migration.Op(
+		migration.Step(
 			migration.CreateTable,
 			migration.Body(
 				"CREATE TABLE example_table (id int not null, name varchar(32) not null);",
@@ -22,7 +22,7 @@ func main() {
 			),
 			"example_table",
 		),
-		migration.Op(
+		migration.Step(
 			migration.CreateColumn,
 			migration.Body(
 				"ALTER TABLE example_table ADD foo varchar(64);",
