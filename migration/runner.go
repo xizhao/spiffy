@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 
+	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/go-util"
 	"github.com/blendlabs/spiffy"
 )
@@ -40,7 +41,7 @@ func (r Runner) Test(c *spiffy.DbConnection) (err error) {
 		return err
 	}
 	defer func() {
-		err = tx.Rollback()
+		err = exception.Wrap(tx.Rollback())
 	}()
 
 	setLoggerPhase(r.Logger, "test", r.Name)
@@ -60,7 +61,11 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 		return err
 	}
 	defer func() {
-		err = tx.Commit()
+		if err == nil {
+			err = exception.Wrap(tx.Commit())
+		} else {
+			err = exception.WrapMany(err, exception.New(tx.Rollback()))
+		}
 	}()
 
 	setLoggerPhase(r.Logger, "apply", r.Name)
