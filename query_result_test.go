@@ -10,8 +10,8 @@ import (
 
 func TestQueryResultEach(t *testing.T) {
 	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
 	defer tx.Rollback()
 
 	seedErr := seedObjects(10, tx)
@@ -19,7 +19,7 @@ func TestQueryResultEach(t *testing.T) {
 
 	var all []benchObj
 	var popErr error
-	err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Each(func(r *sql.Rows) error {
+	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).Each(func(r *sql.Rows) error {
 		bo := benchObj{}
 		popErr = bo.Populate(r)
 		if popErr != nil {
@@ -34,12 +34,12 @@ func TestQueryResultEach(t *testing.T) {
 
 func TestQueryResultAny(t *testing.T) {
 	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
 	defer tx.Rollback()
 
-	seedErr := seedObjects(10, tx)
-	a.Nil(seedErr)
+	err = seedObjects(10, tx)
+	a.Nil(err)
 
 	var all []benchObj
 	allErr := DefaultDb().GetAllInTransaction(&all, tx)
@@ -48,19 +48,19 @@ func TestQueryResultAny(t *testing.T) {
 
 	obj := all[0]
 
-	exists, existsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, obj.ID).Any()
-	a.Nil(existsErr)
+	exists, err := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, obj.ID).Any()
+	a.Nil(err)
 	a.True(exists)
 
-	notExists, notExistsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, -1).Any()
-	a.Nil(notExistsErr)
+	notExists, err := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, -1).Any()
+	a.Nil(err)
 	a.False(notExists)
 }
 
 func TestQueryResultNone(t *testing.T) {
 	a := assert.New(t)
-	tx, txErr := DefaultDb().Begin()
-	a.Nil(txErr)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
 	defer tx.Rollback()
 
 	seedErr := seedObjects(10, tx)
@@ -150,7 +150,11 @@ func TestMultipleQueriesPerTransaction(t *testing.T) {
 }
 
 // Note: this test assumes that `bench_object` DOES NOT EXIST.
+// It also is generally skipped as it barfs a bunch of errors into the
+// postgres log.
 func TestMultipleQueriesPerTransactionWithFailure(t *testing.T) {
+	t.Skip()
+
 	a := assert.New(t)
 	tx, err := DefaultDb().Begin()
 	a.Nil(err)
