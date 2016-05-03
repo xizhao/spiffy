@@ -13,7 +13,7 @@ func main() {
 	initDb()
 
 	m := migration.New(
-		"test",
+		"example_table",
 		migration.Op(
 			migration.CreateTable,
 			migration.Body(
