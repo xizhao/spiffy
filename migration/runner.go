@@ -64,6 +64,9 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 	defer setLoggerPhase(r.Logger, util.StringEmpty, util.StringEmpty)
 
 	err = r.Invoke(c, tx)
+	if err != nil {
+		logError(r.Logger, err)
+	}
 	return
 }
 
