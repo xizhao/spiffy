@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 
+	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/spiffy"
 )
 
@@ -41,9 +42,13 @@ func (s Operation) Test(c *spiffy.DbConnection) (err error) {
 		return
 	}
 	defer func() {
-		err = tx.Rollback()
+		err = exception.Wrap(tx.Rollback())
 	}()
-	return s.Invoke(c, tx)
+	err = s.Invoke(c, tx)
+	if err != nil {
+		logError(s.Logger, err)
+	}
+	return
 }
 
 // Apply wraps the action in a commit.
@@ -53,9 +58,19 @@ func (s Operation) Apply(c *spiffy.DbConnection) (err error) {
 		return
 	}
 	defer func() {
-		err = tx.Commit()
+		if err == nil {
+			err = exception.Wrap(tx.Commit())
+		} else {
+			err = exception.WrapMany(err, exception.New(tx.Rollback()))
+		}
 	}()
-	return s.Invoke(c, tx)
+
+	err = s.Invoke(c, tx)
+	if err != nil {
+		logError(s.Logger, err)
+	}
+
+	return
 }
 
 // Invoke runs the operation against the given connection and transaction.
