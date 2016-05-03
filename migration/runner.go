@@ -29,7 +29,7 @@ func (r *Runner) SetLogger(logger *log.Logger) {
 	r.Logger = logger
 }
 
-// Test runs the migration suite and then rolls it back.
+// Test wraps the action in a transaction and rolls the transaction back upon completion.
 func (r Runner) Test(c *spiffy.DbConnection) (err error) {
 	tx, err := c.Begin()
 	if err != nil {
@@ -49,7 +49,7 @@ func (r Runner) Test(c *spiffy.DbConnection) (err error) {
 	return
 }
 
-// Apply applies the migration suite and commits it to the db.
+// Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
 func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 	tx, err := c.Begin()
 	if err != nil {

@@ -35,7 +35,7 @@ func (s *Operation) SetLogger(logger *log.Logger) {
 	s.Logger = logger
 }
 
-// Test wraps the action in a commit.
+// Test wraps the action in a transaction and rolls the transaction back upon completion.
 func (s Operation) Test(c *spiffy.DbConnection) (err error) {
 	tx, err := c.Begin()
 	if err != nil {
@@ -51,7 +51,7 @@ func (s Operation) Test(c *spiffy.DbConnection) (err error) {
 	return
 }
 
-// Apply wraps the action in a commit.
+// Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
 func (s Operation) Apply(c *spiffy.DbConnection) (err error) {
 	tx, err := c.Begin()
 	if err != nil {
