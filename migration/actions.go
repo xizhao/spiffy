@@ -54,12 +54,12 @@ func action1impl(verb, noun string, guard guard1, guardArgName string, stack []s
 			return nil
 		}
 		if l != nil {
-			return l.Applyf(newStack, "%s %s", verb, subject)
+			return l.Applyf(newStack, "%s %s `%s`", verb, noun, subject)
 		}
 		return nil
 	}
 	if l != nil {
-		return l.Skipf(newStack, "%s %s skipped", verb, subject)
+		return l.Skipf(newStack, "%s %s `%s` skipped", verb, noun, subject)
 	}
 	return nil
 }
@@ -91,12 +91,12 @@ func action2impl(verb, noun string, guard guard2, guardArgNames, stack []string,
 			return err
 		}
 		if l != nil {
-			return l.Applyf(newStack, "%s %s on %s", verb, subject2, subject1)
+			return l.Applyf(newStack, "%s %s `%s` on `%s`", verb, noun, subject2, subject1)
 		}
 		return nil
 	}
 	if l != nil {
-		return l.Skipf(newStack, "%s %s on %s skipped", verb, subject2, subject1)
+		return l.Skipf(newStack, "%s %s `%s` on `%s` skipped", verb, noun, subject2, subject1)
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func action2impl(verb, noun string, guard guard2, guardArgNames, stack []string,
 
 // CreateColumn creates a table on the given connection if it does not exist.
 func CreateColumn(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	return action2impl(verbCreate, nounTable, ColumnExists, []string{"table_name", "column_name"}, stack, l, c, tx, body, args...)
+	return action2impl(verbCreate, nounColumn, ColumnExists, []string{"table_name", "column_name"}, stack, l, c, tx, body, args...)
 }
 
 // CreateConstraint creates a table on the given connection if it does not exist.

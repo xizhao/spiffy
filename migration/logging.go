@@ -64,10 +64,11 @@ func (l *Logger) WriteStats() {
 }
 
 func (l *Logger) write(stack []string, color, body string) {
-	l.Output.Printf(" %s :: %s %s %s",
+	l.Output.Printf(" %s %s %s %s %s",
 		util.ColorFixedWidthLeftAligned(l.Phase, util.ColorBlue, 5),
-		util.ColorFixedWidthLeftAligned(strings.Join(stack, util.Color(" > ", util.ColorGray)), color, 15),
-		util.Color("--", util.ColorGray),
+		util.Color("--", util.ColorLightBlack),
+		util.ColorFixedWidthLeftAligned(strings.Join(stack, util.Color(" > ", util.ColorLightBlack)), color, 15),
+		util.Color("--", util.ColorLightBlack),
 		body,
 	)
 }
