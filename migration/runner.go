@@ -75,7 +75,7 @@ func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 		}
 	}
 
-	if (r.IsDefault || len(r.Stack) == 1) && r.Logger != nil {
+	if r.IsDefault && r.Logger != nil {
 		r.Logger.WriteStats()
 	}
 	return
