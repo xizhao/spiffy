@@ -54,12 +54,12 @@ func action1impl(verb, noun string, guard guard1, guardArgName string, stack []s
 			return nil
 		}
 		if l != nil {
-			return l.Applyf(newStack, "%s %s `%s`", verb, noun, subject)
+			return l.Applyf(newStack, "`%s`", subject)
 		}
 		return nil
 	}
 	if l != nil {
-		return l.Skipf(newStack, "%s %s `%s` skipped", verb, noun, subject)
+		return l.Skipf(newStack, "`%s` skipped", subject)
 	}
 	return nil
 }
@@ -91,12 +91,12 @@ func action2impl(verb, noun string, guard guard2, guardArgNames, stack []string,
 			return err
 		}
 		if l != nil {
-			return l.Applyf(newStack, "%s %s `%s` on `%s`", verb, noun, subject2, subject1)
+			return l.Applyf(newStack, "`%s` on `%s`", subject2, subject1)
 		}
 		return nil
 	}
 	if l != nil {
-		return l.Skipf(newStack, "%s %s `%s` on `%s` skipped", verb, noun, subject2, subject1)
+		return l.Skipf(newStack, "`%s` on `%s` skipped", subject2, subject1)
 	}
 	return nil
 }
