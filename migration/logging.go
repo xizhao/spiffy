@@ -34,21 +34,21 @@ type Logger struct {
 
 // Applyf active actions to the log.
 func (l *Logger) Applyf(stack []string, body string, args ...interface{}) error {
-	l.applied++
+	l.applied = l.applied + 1
 	l.write(stack, util.ColorLightGreen, fmt.Sprintf(body, args...))
 	return nil
 }
 
 // Skipf passive actions to the log.
 func (l *Logger) Skipf(stack []string, body string, args ...interface{}) error {
-	l.skipped++
+	l.skipped = l.skipped + 1
 	l.write(stack, util.ColorGreen, fmt.Sprintf(body, args...))
 	return nil
 }
 
 // Errorf writes errors to the log.
 func (l *Logger) Errorf(stack []string, err error) error {
-	l.failed++
+	l.failed = l.failed + 1
 	l.write(stack, util.ColorRed, fmt.Sprintf("%v", err.Error()))
 	return err
 }
@@ -57,8 +57,8 @@ func (l *Logger) Errorf(stack []string, err error) error {
 func (l *Logger) WriteStats() {
 	l.Output.Printf("\n\t%s applied %s skipped %s failed\n\n",
 		util.Color(util.IntToString(l.applied), util.ColorGreen),
-		util.Color(util.IntToString(l.applied), util.ColorLightGreen),
-		util.Color(util.IntToString(l.applied), util.ColorRed),
+		util.Color(util.IntToString(l.skipped), util.ColorLightGreen),
+		util.Color(util.IntToString(l.failed), util.ColorRed),
 	)
 }
 
