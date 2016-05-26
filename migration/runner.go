@@ -22,6 +22,7 @@ type Runner struct {
 	Stack      []string
 	Logger     *Logger
 	Migrations []Migration
+	IsDefault  bool
 }
 
 // Logged sets the logger the Runner should use.
@@ -74,7 +75,7 @@ func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 		}
 	}
 
-	if len(r.Stack) == 0 && r.Logger != nil {
+	if (r.IsDefault || len(r.Stack) == 1) && r.Logger != nil {
 		r.Logger.WriteStats()
 	}
 	return
