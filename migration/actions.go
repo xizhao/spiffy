@@ -2,112 +2,161 @@ package migration
 
 import (
 	"database/sql"
-	"log"
+	"fmt"
 	"strings"
 
+	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/spiffy"
 )
 
-// CreateColumn creates a table on the given connection if it does not exist.
-func CreateColumn(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := ColumnExists(c, tx, args[0], args[1]); err != nil {
-		return err
-	} else if !exists {
-		logActionActive(l, "create column", "creating column %s on table %s", args[1], args[0])
-		return body.Invoke(c, tx)
+const (
+	verbCreate = "create"
+	verbAlter  = "alter"
+
+	nounColumn     = "column"
+	nounTable      = "table"
+	nounIndex      = "index"
+	nounConstraint = "constraint"
+)
+
+// actionName joins a noun and a verb
+func actionName(verb, noun string) string {
+	return fmt.Sprintf("%v %v", verb, noun)
+}
+
+// guard1 is for guards that require (1) arg such as `create table` and create constraint`
+type guard1 func(c *spiffy.DbConnection, tx *sql.Tx, arg string) (bool, error)
+
+// guard2 is for guards that require (2) args such as `create column` and `create index`
+type guard2 func(c *spiffy.DbConnection, tx *sql.Tx, arg1, arg2 string) (bool, error)
+
+func action1impl(verb, noun string, guard guard1, guardArgName string, stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	action := actionName(verb, noun)
+	newStack := append(stack, action)
+	if len(args) < 1 {
+		if l != nil {
+			return l.Errorf(newStack, exception.Newf("`%s` requires (1) argument => %s", guardArgName))
+		}
+		return nil
 	}
-	logActionPassive(l, "create column", "column %s on table %s already exists, skipping ...", args[1], args[0])
+	subject := args[0]
+	if exists, err := guard(c, tx, subject); err != nil {
+		if l != nil {
+			return l.Errorf(newStack, err)
+		}
+		return nil
+	} else if (verb == verbCreate && !exists) || (verb == verbAlter && exists) {
+		err = body.Invoke(c, tx)
+		if err != nil {
+			if l != nil {
+				return l.Errorf(newStack, err)
+			}
+			return nil
+		}
+		if l != nil {
+			return l.Applyf(newStack, "%s %s", verb, subject)
+		}
+		return nil
+	}
+	if l != nil {
+		return l.Skipf(newStack, "%s %s skipped", verb, subject)
+	}
 	return nil
+}
+
+func action2impl(verb, noun string, guard guard2, guardArgNames, stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	action := actionName(verb, noun)
+	newStack := append(stack, action)
+	if len(args) < 2 {
+		err := exception.Newf("`%s` requires (2) arguments => %s", strings.Join(guardArgNames, ", "))
+		if l != nil {
+			return l.Errorf(newStack, err)
+		}
+		return err
+	}
+	subject1 := args[0]
+	subject2 := args[1]
+
+	if exists, err := guard(c, tx, subject1, subject2); err != nil {
+		if l != nil {
+			return l.Errorf(newStack, err)
+		}
+		return err
+	} else if (verb == verbCreate && !exists) || (verb == verbAlter && exists) {
+		err = body.Invoke(c, tx)
+		if err != nil {
+			if l != nil {
+				return l.Errorf(newStack, err)
+			}
+			return err
+		}
+		if l != nil {
+			return l.Applyf(newStack, "%s %s on %s", verb, subject2, subject1)
+		}
+		return nil
+	}
+	if l != nil {
+		return l.Skipf(newStack, "%s %s on %s skipped", verb, subject2, subject1)
+	}
+	return nil
+}
+
+// --------------------------------------------------------------------------------
+// Actions
+// --------------------------------------------------------------------------------
+
+// CreateColumn creates a table on the given connection if it does not exist.
+func CreateColumn(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action2impl(verbCreate, nounTable, ColumnExists, []string{"table_name", "column_name"}, stack, l, c, tx, body, args...)
 }
 
 // CreateConstraint creates a table on the given connection if it does not exist.
-func CreateConstraint(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := ConstraintExists(c, tx, args[0]); err != nil {
-		return err
-	} else if !exists {
-		logActionActive(l, "create constraint", "creating constraint %s", args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "create constraint", "constraint %s already exists, skipping ...", args[0])
-	return nil
+func CreateConstraint(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action1impl(verbCreate, nounConstraint, ConstraintExists, "constraint_name", stack, l, c, tx, body, args...)
 }
 
 // CreateTable creates a table on the given connection if it does not exist.
-func CreateTable(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := TableExists(c, tx, args[0]); err != nil {
-		return err
-	} else if !exists {
-		logActionActive(l, "create table", "creating table %s", args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "create table", "table %s already exists, skipping ...", args[0])
-	return nil
+func CreateTable(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action1impl(verbCreate, nounTable, TableExists, "table_name", stack, l, c, tx, body, args...)
 }
 
 // CreateIndex creates a index on the given connection if it does not exist.
-func CreateIndex(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := IndexExists(c, tx, args[0], args[1]); err != nil {
-		return err
-	} else if !exists {
-		logActionActive(l, "create index", "creating index %s on table %s", args[1], args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "create index", "index %s on table %s already exists, skipping ...", args[1], args[0])
-	return nil
+func CreateIndex(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action2impl(verbCreate, nounIndex, IndexExists, []string{"table_name", "index_name"}, stack, l, c, tx, body, args...)
 }
 
 // AlterColumn alters an existing column, erroring if it doesn't exist
-func AlterColumn(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := ColumnExists(c, tx, args[0], args[1]); err != nil {
-		return err
-	} else if exists {
-		logActionActive(l, "alter column", "altering column %s on table %s", args[1], args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "alter column", "column %s on table %s does not exist, skipping ...", args[1], args[0])
-	return nil
+func AlterColumn(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action2impl(verbAlter, nounTable, ColumnExists, []string{"table_name", "column_name"}, stack, l, c, tx, body, args...)
 }
 
 // AlterConstraint alters an existing constraint, erroring if it doesn't exist
-func AlterConstraint(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := ConstraintExists(c, tx, args[0]); err != nil {
-		return err
-	} else if exists {
-		logActionActive(l, "alter constraint", "altering constraint %s", args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "alter constraint", "constraint %s does not exist, skipping ...", args[0])
-	return nil
+func AlterConstraint(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action1impl(verbAlter, nounConstraint, ConstraintExists, "constraint_name", stack, l, c, tx, body, args...)
 }
 
 // AlterTable alters an existing table, erroring if it doesn't exist
-func AlterTable(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := TableExists(c, tx, args[0]); err != nil {
-		return err
-	} else if exists {
-		logActionActive(l, "alter table", "altering table %s", args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "alter table", "table %s does not exist, skipping ...", args[0])
-	return nil
+func AlterTable(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action1impl(verbAlter, nounTable, TableExists, "table_name", stack, l, c, tx, body, args...)
 }
 
 // AlterIndex alters an existing index, erroring if it doesn't exist
-func AlterIndex(l *log.Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
-	if exists, err := IndexExists(c, tx, args[0], args[1]); err != nil {
-		return err
-	} else if exists {
-		logActionActive(l, "alter index", "altering index %s on table %s", args[1], args[0])
-		return body.Invoke(c, tx)
-	}
-	logActionPassive(l, "alter index", "index %s on table %s does not exist, skipping ...", args[1], args[0])
-	return nil
+func AlterIndex(stack []string, l *Logger, c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
+	return action2impl(verbAlter, nounIndex, IndexExists, []string{"table_name", "index_name"}, stack, l, c, tx, body, args...)
 }
+
+// --------------------------------------------------------------------------------
+// Execute
+// --------------------------------------------------------------------------------
 
 // Execute runs a given statement. You should guard the statement for re-runability yourself.
 func Execute(c *spiffy.DbConnection, tx *sql.Tx, body Invocable, args ...string) error {
 	return body.Invoke(c, tx)
 }
+
+// --------------------------------------------------------------------------------
+// Guards
+// --------------------------------------------------------------------------------
 
 // TableExists returns if a table exists on the given connection.
 func TableExists(c *spiffy.DbConnection, tx *sql.Tx, tableName string) (bool, error) {

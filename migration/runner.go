@@ -2,10 +2,8 @@ package migration
 
 import (
 	"database/sql"
-	"log"
 
 	"github.com/blendlabs/go-exception"
-	"github.com/blendlabs/go-util"
 	"github.com/blendlabs/spiffy"
 )
 
@@ -13,6 +11,7 @@ import (
 func New(name string, migrations ...Migration) Migration {
 	return &Runner{
 		Name:       name,
+		Stack:      []string{name},
 		Migrations: migrations,
 	}
 }
@@ -20,13 +19,15 @@ func New(name string, migrations ...Migration) Migration {
 // Runner runs the migrations
 type Runner struct {
 	Name       string
-	Logger     *log.Logger
+	Stack      []string
+	Logger     *Logger
 	Migrations []Migration
 }
 
-// SetLogger sets the logger the Runner should use.
-func (r *Runner) SetLogger(logger *log.Logger) {
+// Logged sets the logger the Runner should use.
+func (r *Runner) Logged(logger *Logger, stack ...string) {
 	r.Logger = logger
+	r.Stack = append(stack, r.Stack...)
 }
 
 // Test wraps the action in a transaction and rolls the transaction back upon completion.
@@ -38,14 +39,8 @@ func (r Runner) Test(c *spiffy.DbConnection) (err error) {
 	defer func() {
 		err = exception.Wrap(tx.Rollback())
 	}()
-
-	setLoggerPhase(r.Logger, "test", r.Name)
-	defer setLoggerPhase(r.Logger, util.StringEmpty, util.StringEmpty)
-
+	r.Logger.Phase = "test"
 	err = r.Invoke(c, tx)
-	if err != nil {
-		logError(r.Logger, err)
-	}
 	return
 }
 
@@ -62,14 +57,8 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 			err = exception.WrapMany(err, exception.New(tx.Rollback()))
 		}
 	}()
-
-	setLoggerPhase(r.Logger, "apply", r.Name)
-	defer setLoggerPhase(r.Logger, util.StringEmpty, util.StringEmpty)
-
+	r.Logger.Phase = "apply"
 	err = r.Invoke(c, tx)
-	if err != nil {
-		logError(r.Logger, err)
-	}
 	return
 }
 
@@ -77,7 +66,7 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 	for _, m := range r.Migrations {
 		if r.Logger != nil {
-			m.SetLogger(r.Logger)
+			m.Logged(r.Logger, r.Stack...)
 		}
 		err = m.Invoke(c, tx)
 		if err != nil {

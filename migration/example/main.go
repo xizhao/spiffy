@@ -12,7 +12,7 @@ func main() {
 	initDb()
 
 	m := migration.New(
-		"example_table",
+		"create example_table",
 		migration.Step(
 			migration.CreateTable,
 			migration.Body(
@@ -29,9 +29,9 @@ func main() {
 			"example_table", "foo",
 		),
 	)
-	m.SetLogger(migration.NewLogger())
+	m.Logged(migration.NewLogger())
 
-	err := m.Apply(spiffy.DefaultDb())
+	err := m.Test(spiffy.DefaultDb())
 	if err != nil {
 		os.Exit(1)
 	}
