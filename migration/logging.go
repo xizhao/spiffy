@@ -63,7 +63,7 @@ func (l *Logger) WriteStats() {
 }
 
 func (l *Logger) write(stack []string, color, body string) {
-	l.Output.Printf("%s %s %s %s\t%s %s",
+	l.Output.Printf("%s %s %s %s %s %s",
 		util.Color("migrate", util.ColorBlue),
 		util.ColorFixedWidthLeftAligned(l.Phase, util.ColorBlue, 5),
 		util.Color("--", util.ColorLightBlack),
@@ -77,14 +77,15 @@ func (l *Logger) renderStack(stack []string, color string) string {
 	stackSeparator := util.Color(" > ", util.ColorLightBlack)
 	var renderedStack string
 	for index, stackElement := range stack {
+		if len(stackElement) == 0 {
+			continue
+		}
 
-		if index < len(stack)-2 {
+		if index < len(stack)-1 {
 			renderedStack = renderedStack + util.Color(stackElement, color)
 			renderedStack = renderedStack + stackSeparator
-		} else if index < len(stack)-1 {
-			renderedStack = renderedStack + util.ColorFixedWidthLeftAligned(stackElement, color, 16)
 		} else {
-			renderedStack = renderedStack + "\t" + stackElement
+			renderedStack = renderedStack + stackElement
 		}
 	}
 	return renderedStack
