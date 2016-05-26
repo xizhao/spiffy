@@ -70,8 +70,12 @@ func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 		}
 		err = m.Invoke(c, tx)
 		if err != nil {
-			return err
+			break
 		}
 	}
-	return nil
+
+	if len(r.Stack) == 1 && r.Logger != nil {
+		r.Logger.WriteStats()
+	}
+	return
 }

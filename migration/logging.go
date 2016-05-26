@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/blendlabs/go-util"
 )
@@ -12,7 +11,7 @@ import (
 // NewLogger returns a new logger instance.
 func NewLogger() *Logger {
 	return &Logger{
-		Output: log.New(os.Stdout, util.Color("migrate", util.ColorBlue), 0x0),
+		Output: log.New(os.Stdout, "", 0x0),
 	}
 }
 
@@ -56,7 +55,7 @@ func (l *Logger) Errorf(stack []string, err error) error {
 
 // WriteStats writes final stats to output
 func (l *Logger) WriteStats() {
-	l.Output.Printf("\n\t%s applied %s skipped %s failed\n",
+	l.Output.Printf("\n\t%s applied %s skipped %s failed\n\n",
 		util.Color(util.IntToString(l.applied), util.ColorGreen),
 		util.Color(util.IntToString(l.applied), util.ColorLightGreen),
 		util.Color(util.IntToString(l.applied), util.ColorRed),
@@ -64,11 +63,29 @@ func (l *Logger) WriteStats() {
 }
 
 func (l *Logger) write(stack []string, color, body string) {
-	l.Output.Printf(" %s %s %s %s %s",
+	l.Output.Printf("%s %s %s %s\t%s %s",
+		util.Color("migrate", util.ColorBlue),
 		util.ColorFixedWidthLeftAligned(l.Phase, util.ColorBlue, 5),
 		util.Color("--", util.ColorLightBlack),
-		util.ColorFixedWidthLeftAligned(strings.Join(stack, util.Color(" > ", util.ColorLightBlack)), color, 15),
+		l.renderStack(stack, color),
 		util.Color("--", util.ColorLightBlack),
 		body,
 	)
+}
+
+func (l *Logger) renderStack(stack []string, color string) string {
+	stackSeparator := util.Color(" > ", util.ColorLightBlack)
+	var renderedStack string
+	for index, stackElement := range stack {
+
+		if index < len(stack)-2 {
+			renderedStack = renderedStack + util.Color(stackElement, color)
+			renderedStack = renderedStack + stackSeparator
+		} else if index < len(stack)-1 {
+			renderedStack = renderedStack + util.ColorFixedWidthLeftAligned(stackElement, color, 16)
+		} else {
+			renderedStack = renderedStack + "\t" + stackElement
+		}
+	}
+	return renderedStack
 }
