@@ -58,7 +58,9 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 			err = exception.WrapMany(err, exception.New(tx.Rollback()))
 		}
 	}()
-	r.Logger.Phase = "apply"
+	if r.Logger != nil {
+		r.Logger.Phase = "apply"
+	}
 	err = r.Invoke(c, tx)
 	return
 }
