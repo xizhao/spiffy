@@ -88,12 +88,24 @@ func TestColumnCollectionCopy(t *testing.T) {
 	assert.NotEqual(meta.columnPrefix, newMeta.columnPrefix)
 }
 
+func TestColumnCollectionRemove(t *testing.T) {
+	assert := assert.New(t)
+
+	obj := myStruct{}
+	meta := CachedColumnCollectionFromInstance(obj)
+	newMeta := meta.Copy()
+
+	assert.True(newMeta.HasColumn("primary_key_column"))
+	newMeta.Remove("primary_key_column")
+	assert.False(newMeta.HasColumn("primary_key_column"))
+}
+
 func TestColumnCollectionWithColumnPrefix(t *testing.T) {
 	assert := assert.New(t)
 
 	obj := myStruct{}
 	meta := CachedColumnCollectionFromInstance(obj)
-	newMeta := meta.WithColumnPrefix("foo_")
+	newMeta := meta.CopyWithColumnPrefix("foo_")
 	assert.Equal("foo_", newMeta.columnPrefix)
 	assert.False(meta == newMeta, "These pointers should not be the same.")
 	assert.NotEqual(meta.columnPrefix, newMeta.columnPrefix)
