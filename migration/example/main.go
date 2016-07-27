@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 
-	"github.com/blendlabs/go-util"
 	"github.com/blendlabs/spiffy"
 	"github.com/blendlabs/spiffy/migration"
 )
@@ -44,24 +43,7 @@ func main() {
 }
 
 func initDb() {
-	config := dbConnectionFromEnvironment()
+	config := spiffy.NewDbConnectionFromEnvironment()
 	spiffy.CreateDbAlias("main", config)
 	spiffy.SetDefaultAlias("main")
-}
-
-func dbConnectionFromEnvironment() *spiffy.DbConnection {
-	dbHost := os.Getenv("DB_HOST")
-	dbSchema := os.Getenv("DB_SCHEMA")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-
-	if util.IsEmpty(dbHost) {
-		dbHost = "localhost"
-	}
-
-	if util.IsEmpty(dbSchema) {
-		dbSchema = "postgres"
-	}
-
-	return spiffy.NewDbConnection(dbHost, dbSchema, dbUser, dbPassword)
 }
