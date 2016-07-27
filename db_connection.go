@@ -152,11 +152,6 @@ func (dbc *DbConnection) CreatePostgresConnectionString() string {
 		sslMode = fmt.Sprintf("?sslmode=%s", url.QueryEscape(dbc.SSLMode))
 	}
 
-	schemaSegment := ""
-	if len(dbc.Schema) > 0 {
-		schemaSegment = fmt.Sprintf("&currentSchema=%s", url.QueryEscape(dbc.Schema))
-	}
-
 	portSegment := ""
 	if len(dbc.Port) > 0 {
 		portSegment = fmt.Sprintf(":%s", dbc.Port)
@@ -164,11 +159,11 @@ func (dbc *DbConnection) CreatePostgresConnectionString() string {
 
 	if dbc.Username != "" {
 		if dbc.Password != "" {
-			return fmt.Sprintf("postgres://%s:%s@%s%s/%s%s%s", url.QueryEscape(dbc.Username), url.QueryEscape(dbc.Password), dbc.Host, portSegment, dbc.Database, sslMode, schemaSegment)
+			return fmt.Sprintf("postgres://%s:%s@%s%s/%s%s", url.QueryEscape(dbc.Username), url.QueryEscape(dbc.Password), dbc.Host, portSegment, dbc.Database, sslMode)
 		}
-		return fmt.Sprintf("postgres://%s@%s%s/%s%s%s", url.QueryEscape(dbc.Username), dbc.Host, portSegment, dbc.Database, sslMode, schemaSegment)
+		return fmt.Sprintf("postgres://%s@%s%s/%s%s", url.QueryEscape(dbc.Username), dbc.Host, portSegment, dbc.Database, sslMode)
 	}
-	return fmt.Sprintf("postgres://%s%s/%s%s%s", dbc.Host, portSegment, dbc.Database, sslMode, schemaSegment)
+	return fmt.Sprintf("postgres://%s%s/%s%s", dbc.Host, portSegment, dbc.Database, sslMode)
 }
 
 // Begin starts a new transaction.
@@ -252,6 +247,14 @@ func (dbc *DbConnection) OpenNew() (*sql.DB, error) {
 	if err != nil {
 		return nil, exception.Wrap(err)
 	}
+
+	if len(dbc.Schema) > 0 {
+		_, err = dbConn.Exec("SET search_path TO $1,public;", dbc.Schema)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return dbConn, nil
 }
 
