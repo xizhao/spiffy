@@ -15,7 +15,7 @@ func TestAliases(t *testing.T) {
 	}()
 
 	a := assert.New(t)
-	config := dbConnectionFromEnvironment()
+	config := NewDbConnectionFromEnvironment()
 
 	CreateDbAlias("test", config)
 

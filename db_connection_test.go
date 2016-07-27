@@ -9,25 +9,25 @@ import (
 
 func TestNewAunauthenticatedDbConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewUnauthenticatedDbConnection("test_host", "test_schema")
+	conn := NewDbConnection("test_host", "test_schema")
 	a.Equal("test_host", conn.Host)
-	a.Equal("test_schema", conn.Schema)
+	a.Equal("test_schema", conn.Database)
 }
 
 func TestNewDbConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewDbConnection("test_host", "test_schema", "test_user", "test_password")
+	conn := NewDbConnectionWithPassword("test_host", "test_schema", "test_user", "test_password")
 	a.Equal("test_host", conn.Host)
-	a.Equal("test_schema", conn.Schema)
+	a.Equal("test_schema", conn.Database)
 	a.Equal("test_user", conn.Username)
 	a.Equal("test_password", conn.Password)
 }
 
 func TestNewSSLDbConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewSSLDbConnection("test_host", "test_schema", "test_user", "test_password", "a good one")
+	conn := NewDbConnectionWithSSLMode("test_host", "test_schema", "test_user", "test_password", "a good one")
 	a.Equal("test_host", conn.Host)
-	a.Equal("test_schema", conn.Schema)
+	a.Equal("test_schema", conn.Database)
 	a.Equal("test_user", conn.Username)
 	a.Equal("test_password", conn.Password)
 	a.Equal("a good one", conn.SSLMode)
@@ -35,7 +35,7 @@ func TestNewSSLDbConnection(t *testing.T) {
 
 // TestConnectionSanityCheck tests if we can connect to the db, a.k.a., if the underlying driver works.
 func TestConnectionSanityCheck(t *testing.T) {
-	config := dbConnectionFromEnvironment()
+	config := NewDbConnectionFromEnvironment()
 	_, dbErr := sql.Open("postgres", config.CreatePostgresConnectionString())
 	if dbErr != nil {
 		t.Error("Error opening database")
@@ -138,7 +138,7 @@ func TestCRUDMethods(t *testing.T) {
 func TestDbConnectionOpen(t *testing.T) {
 	a := assert.New(t)
 
-	testAlias := dbConnectionFromEnvironment()
+	testAlias := NewDbConnectionFromEnvironment()
 	db, dbErr := testAlias.Open()
 	a.Nil(dbErr)
 	a.NotNil(db)

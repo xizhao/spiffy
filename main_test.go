@@ -16,7 +16,7 @@ import (
 
 // TestMain is the testing entrypoint.
 func TestMain(m *testing.M) {
-	config := dbConnectionFromEnvironment()
+	config := NewDbConnectionFromEnvironment()
 	CreateDbAlias("main", config)
 	SetDefaultAlias("main")
 
@@ -67,23 +67,6 @@ func BenchmarkMain(b *testing.B) {
 	}
 
 	b.Logf("Benchmark Test Results: Manual: %v vs. Orm: %v\n", manualAfter.Sub(manualBefore), ormAfter.Sub(ormBefore))
-}
-
-func dbConnectionFromEnvironment() *DbConnection {
-	dbHost := os.Getenv("DB_HOST")
-	dbSchema := os.Getenv("DB_SCHEMA")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-
-	if dbSchema == "" {
-		dbSchema = "postgres"
-	}
-
-	return NewDbConnection(dbHost, dbSchema, dbUser, dbPassword)
 }
 
 //------------------------------------------------------------------------------------------------
