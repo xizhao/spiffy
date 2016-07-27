@@ -16,11 +16,13 @@ func TestNewAunauthenticatedDbConnection(t *testing.T) {
 
 func TestNewDbConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewDbConnectionWithPassword("test_host", "test_schema", "test_user", "test_password")
+	conn := NewDbConnectionWithPassword("test_host", "test_database", "test_user", "test_password")
 	a.Equal("test_host", conn.Host)
-	a.Equal("test_schema", conn.Database)
+	a.Equal("test_database", conn.Database)
 	a.Equal("test_user", conn.Username)
 	a.Equal("test_password", conn.Password)
+
+	a.Equal("postgres://test_user:test_password@test_host/test_database?sslmode=disable", conn.CreatePostgresConnectionString())
 }
 
 func TestNewSSLDbConnection(t *testing.T) {

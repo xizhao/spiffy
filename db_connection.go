@@ -149,12 +149,12 @@ func (dbc *DbConnection) CreatePostgresConnectionString() string {
 	}
 	sslMode := "?sslmode=disable"
 	if len(dbc.SSLMode) > 0 {
-		sslMode = fmt.Sprintf("?sslmode=%s", dbc.SSLMode)
+		sslMode = fmt.Sprintf("?sslmode=%s", url.QueryEscape(dbc.SSLMode))
 	}
 
 	schemaSegment := ""
 	if len(dbc.Schema) > 0 {
-		schemaSegment = fmt.Sprintf("&currentSchema=%s", dbc.Schema)
+		schemaSegment = fmt.Sprintf("&currentSchema=%s", url.QueryEscape(dbc.Schema))
 	}
 
 	portSegment := ""
