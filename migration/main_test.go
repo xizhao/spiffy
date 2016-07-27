@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 
 func dbConnectionFromEnvironment() *spiffy.DbConnection {
 	dbHost := os.Getenv("DB_HOST")
-	dbSchema := os.Getenv("DB_SCHEMA")
+	dbName := os.Getenv("DB_NAME")
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
 
@@ -26,9 +26,9 @@ func dbConnectionFromEnvironment() *spiffy.DbConnection {
 		dbHost = "localhost"
 	}
 
-	if dbSchema == "" {
-		dbSchema = "postgres"
+	if dbName == "" {
+		dbName = "postgres"
 	}
 
-	return spiffy.NewDbConnection(dbHost, dbSchema, dbUser, dbPassword)
+	return spiffy.NewDbConnectionWithPassword(dbHost, dbName, dbUser, dbPassword)
 }
