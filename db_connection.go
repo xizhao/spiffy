@@ -249,7 +249,7 @@ func (dbc *DbConnection) OpenNew() (*sql.DB, error) {
 	}
 
 	if len(dbc.Schema) > 0 {
-		_, err = dbConn.Exec("SET search_path TO $1,public;", dbc.Schema)
+		_, err = dbConn.Exec(fmt.Sprintf("SET search_path TO %s,public;", dbc.Schema))
 		if err != nil {
 			return nil, err
 		}
