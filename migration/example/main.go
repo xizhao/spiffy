@@ -1,7 +1,7 @@
 package main
 
 import (
-	"os"
+	"log"
 
 	"github.com/blendlabs/spiffy"
 	"github.com/blendlabs/spiffy/migration"
@@ -22,6 +22,12 @@ func main() {
 				),
 				"example_table",
 			),
+			migration.Step(
+				migration.AlwaysRun,
+				migration.Body(
+					`INSERT INTO example_table (id, name) select 1, 'foo' where not exists ( select 1 from example_table where id = 1)`,
+				),
+			),
 		),
 		migration.New(
 			"adding a column",
@@ -33,12 +39,22 @@ func main() {
 				"example_table", "foo",
 			),
 		),
+		migration.New(
+			"drop the table",
+			migration.Step(
+				migration.AlterTable,
+				migration.Body(
+					"DROP TABLE example_table;",
+				),
+				"example_table",
+			),
+		),
 	)
 	m.Logged(migration.NewLogger())
 
 	err := m.Test(spiffy.DefaultDb())
 	if err != nil {
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 
