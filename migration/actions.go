@@ -78,7 +78,7 @@ func action1impl(verb, noun string, guard guard1, guardArgName string, stack []s
 		return nil
 	}
 	if l != nil {
-		return l.Skipf(newStack, "skipping `%s`", subject)
+		return l.Skipf(newStack, "`%s`", subject)
 	}
 	return nil
 }
@@ -115,7 +115,7 @@ func action2impl(verb, noun string, guard guard2, guardArgNames, stack []string,
 		return nil
 	}
 	if l != nil {
-		return l.Skipf(newStack, "skipping `%s` on `%s`", subject2, subject1)
+		return l.Skipf(newStack, "`%s` on `%s`", subject2, subject1)
 	}
 	return nil
 }
