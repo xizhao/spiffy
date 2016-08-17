@@ -2,7 +2,9 @@ package spiffy
 
 import (
 	"database/sql"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/blendlabs/go-assert"
 )
@@ -203,4 +205,60 @@ func TestBeginReturnsIsolatedTransaction(t *testing.T) {
 	currentTx, err := DefaultDb().Begin()
 	a.Nil(err)
 	a.Equal(tx, currentTx)
+}
+
+func TestDbConnectionExecuteListeners(t *testing.T) {
+	a := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	a.StartTimeout(time.Second)
+	defer a.EndTimeout()
+
+	oldListeners := DefaultDb().executeListeners
+	DefaultDb().executeListeners = nil
+	defer func() {
+		DefaultDb().executeListeners = oldListeners
+	}()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	DefaultDb().AddExecuteListener(func(dbe *DbEvent) {
+		defer wg.Done()
+		a.Equal("select 'ok!'", dbe.Query)
+		a.NotZero(dbe.Elapsed)
+	})
+
+	err = DefaultDb().ExecInTransaction("select 'ok!'", tx)
+	a.Nil(err)
+}
+
+func TestDbConnectionQueryListeners(t *testing.T) {
+	a := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	a.StartTimeout(time.Second)
+	defer a.EndTimeout()
+
+	oldListeners := DefaultDb().queryListeners
+	DefaultDb().queryListeners = nil
+	defer func() {
+		DefaultDb().queryListeners = oldListeners
+	}()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	DefaultDb().AddQueryListener(func(dbe *DbEvent) {
+		defer wg.Done()
+		a.Equal("select 'ok!'", dbe.Query)
+		a.NotZero(dbe.Elapsed)
+	})
+
+	var result string
+	err = DefaultDb().QueryInTransaction("select 'ok!'", tx).Scan(&result)
+	a.Nil(err)
+	a.Equal("ok!", result)
 }
