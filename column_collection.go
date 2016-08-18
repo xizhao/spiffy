@@ -13,9 +13,18 @@ var (
 )
 
 // --------------------------------------------------------------------------------
-// Column Collection
+// Utility
 // --------------------------------------------------------------------------------
 
+// ColumnNames returns a csv of column names.
+func ColumnNames(object DatabaseMapped) string {
+	columns := CachedColumnCollectionFromInstance(object)
+	return CSV(columns.ColumnNames())
+}
+
+// --------------------------------------------------------------------------------
+// Column Collection
+// --------------------------------------------------------------------------------
 // func NewColumnCollection() *ColumnCollection { return &ColumnCollection{lookup: map[string]*Column} }
 
 // NewColumnCollectionWithPrefix makes a new column collection with a column prefix.
