@@ -18,11 +18,12 @@ func New(name string, migrations ...Migration) Migration {
 
 // Runner runs the migrations
 type Runner struct {
-	Name       string
-	Stack      []string
-	Logger     *Logger
-	Migrations []Migration
-	IsDefault  bool
+	Name               string
+	ShouldBreakOnError bool
+	Stack              []string
+	Logger             *Logger
+	Migrations         []Migration
+	IsDefault          bool
 }
 
 // Logged sets the logger the Runner should use.
@@ -72,7 +73,7 @@ func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 			m.Logged(r.Logger, r.Stack...)
 		}
 		err = m.Invoke(c, tx)
-		if err != nil {
+		if err != nil && r.ShouldBreakOnError {
 			break
 		}
 	}

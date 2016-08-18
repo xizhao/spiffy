@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/blendlabs/go-util"
 )
@@ -11,19 +12,26 @@ import (
 // NewLogger returns a new logger instance.
 func NewLogger() *Logger {
 	return &Logger{
-		Output: log.New(os.Stdout, "", 0x0),
+		ColorizeOutput: true,
+		ShowTimestamp:  true,
+		Output:         log.New(os.Stdout, "", 0x0),
 	}
 }
 
 // NewLoggerFromLog returns a new logger instance from an existing logger..
 func NewLoggerFromLog(l *log.Logger) *Logger {
 	return &Logger{
-		Output: l,
+		ColorizeOutput: true,
+		ShowTimestamp:  true,
+		Output:         l,
 	}
 }
 
 // Logger is a logger for migration steps.
 type Logger struct {
+	ShowTimestamp  bool
+	ColorizeOutput bool
+
 	Output *log.Logger
 	Phase  string // `test` or `apply`
 	Result string // `apply` or `skipped` or `failed`
@@ -57,12 +65,28 @@ func (l *Logger) Errorf(stack []string, err error) error {
 	return err
 }
 
+func (l *Logger) colorize(text, color string) string {
+	if l.ColorizeOutput {
+		return util.Color(text, color)
+	}
+	return text
+}
+
+func (l *Logger) colorizeFixedWidthLeftAligned(text, color string, width int) string {
+	fixedToken := fmt.Sprintf("%%-%ds", width)
+	fixedMessage := fmt.Sprintf(fixedToken, text)
+	if l.ColorizeOutput {
+		return fmt.Sprintf("%s%s%s", util.AnsiEscapeCode(color), fixedMessage, util.AnsiEscapeCode(util.ColorReset))
+	}
+	return fixedMessage
+}
+
 // WriteStats writes final stats to output
 func (l *Logger) WriteStats() {
 	l.Output.Printf("\n\t%s applied %s skipped %s failed\n\n",
-		util.Color(util.IntToString(l.applied), util.ColorGreen),
-		util.Color(util.IntToString(l.skipped), util.ColorLightGreen),
-		util.Color(util.IntToString(l.failed), util.ColorRed),
+		l.colorize(util.IntToString(l.applied), util.ColorGreen),
+		l.colorize(util.IntToString(l.skipped), util.ColorLightGreen),
+		l.colorize(util.IntToString(l.failed), util.ColorRed),
 	)
 }
 
@@ -79,20 +103,26 @@ func (l *Logger) write(stack []string, color, body string) {
 		resultColor = util.ColorRed
 	}
 
-	l.Output.Printf("%s %s %s %s %s %s %s %s",
-		util.Color("migrate", util.ColorBlue),
-		util.ColorFixedWidthLeftAligned(l.Phase, util.ColorBlue, 5),
-		util.Color("--", util.ColorLightBlack),
-		util.ColorFixedWidthLeftAligned(l.Result, resultColor, 5),
-		util.Color("--", util.ColorLightBlack),
+	var timestamp string
+	if l.ShowTimestamp {
+		timestamp = l.colorize(time.Now().UTC().Format(time.RFC3339), util.ColorGray) + " "
+	}
+
+	l.Output.Printf("%s%s %s %s %s %s %s %s %s",
+		timestamp,
+		l.colorize("migrate", util.ColorBlue),
+		l.colorizeFixedWidthLeftAligned(l.Phase, util.ColorBlue, 5),
+		l.colorize("--", util.ColorLightBlack),
+		l.colorizeFixedWidthLeftAligned(l.Result, resultColor, 5),
+		l.colorize("--", util.ColorLightBlack),
 		l.renderStack(stack, color),
-		util.Color("--", util.ColorLightBlack),
+		l.colorize("--", util.ColorLightBlack),
 		body,
 	)
 }
 
 func (l *Logger) renderStack(stack []string, color string) string {
-	stackSeparator := util.Color(" > ", util.ColorLightBlack)
+	stackSeparator := l.colorize(" > ", util.ColorLightBlack)
 	var renderedStack string
 	for index, stackElement := range stack {
 		if len(stackElement) == 0 {
@@ -100,7 +130,7 @@ func (l *Logger) renderStack(stack []string, color string) string {
 		}
 
 		if index < len(stack)-1 {
-			renderedStack = renderedStack + util.Color(stackElement, color)
+			renderedStack = renderedStack + l.colorize(stackElement, color)
 			renderedStack = renderedStack + stackSeparator
 		} else {
 			renderedStack = renderedStack + stackElement
