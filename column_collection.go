@@ -44,6 +44,11 @@ func NewColumnCollectionFromColumns(columns []Column) *ColumnCollection {
 	return &cc
 }
 
+// Meta is an alias to CachedColumnCollectionFromInstance
+func Meta(obj DatabaseMapped) *ColumnCollection {
+	return CachedColumnCollectionFromInstance(obj)
+}
+
 // CachedColumnCollectionFromInstance reflects an object instance into a new column collection.
 func CachedColumnCollectionFromInstance(object DatabaseMapped) *ColumnCollection {
 	return CachedColumnCollectionFromType(object.TableName(), reflect.TypeOf(object))
