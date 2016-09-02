@@ -827,7 +827,7 @@ func (dbc *DbConnection) DeleteInTransaction(object DatabaseMapped, tx *sql.Tx) 
 // NOTE: causes locking around the transaction.
 func (dbc *DbConnection) IsolateToTransaction(tx *sql.Tx) {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return
 	}
 
 	dbc.TxLock.Lock()
@@ -838,7 +838,7 @@ func (dbc *DbConnection) IsolateToTransaction(tx *sql.Tx) {
 // ReleaseIsolation reverses `IsolateToTransaction`
 func (dbc *DbConnection) ReleaseIsolation() {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return
 	}
 
 	dbc.TxLock.Lock()
@@ -849,7 +849,7 @@ func (dbc *DbConnection) ReleaseIsolation() {
 // IsIsolatedToTransaction returns if the connection is isolated to a transaction.
 func (dbc *DbConnection) IsIsolatedToTransaction() bool {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return false
 	}
 
 	dbc.TxLock.RLock()
@@ -861,7 +861,7 @@ func (dbc *DbConnection) IsIsolatedToTransaction() bool {
 // Commit commits a transaction if the connection is not currently isolated to one already.
 func (dbc *DbConnection) Commit(tx *sql.Tx) error {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return exception.New(DBAliasNilError)
 	}
 
 	if dbc.IsIsolatedToTransaction() {
@@ -873,7 +873,7 @@ func (dbc *DbConnection) Commit(tx *sql.Tx) error {
 // Rollback commits a transaction if the connection is not currently isolated to one already.
 func (dbc *DbConnection) Rollback(tx *sql.Tx) error {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return exception.New(DBAliasNilError)
 	}
 
 	if dbc.IsIsolatedToTransaction() {
@@ -884,7 +884,7 @@ func (dbc *DbConnection) Rollback(tx *sql.Tx) error {
 
 func (dbc *DbConnection) txLock() {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return
 	}
 
 	if dbc.Tx != nil {
@@ -894,7 +894,7 @@ func (dbc *DbConnection) txLock() {
 
 func (dbc *DbConnection) txUnlock() {
 	if dbc == nil {
-		panic(DBAliasNilError)
+		return
 	}
 
 	if dbc.Tx != nil {
