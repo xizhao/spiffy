@@ -16,7 +16,7 @@ type Invocable interface {
 
 // Migration is an Invocable that can tested before running.
 type Migration interface {
-	Logged(logger *Logger, stack ...string)
+	SetLogger(logger *Logger, stack ...string)
 	Test(c *spiffy.DbConnection) error
 	Apply(c *spiffy.DbConnection) error
 	Invoke(c *spiffy.DbConnection, tx *sql.Tx) error

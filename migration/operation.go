@@ -30,8 +30,8 @@ type Operation struct {
 	Args   []string
 }
 
-// Logged implements the migration method `Logged`.
-func (o *Operation) Logged(logger *Logger, stack ...string) {
+// SetLogger implements the migration method `SetLogger`.
+func (o *Operation) SetLogger(logger *Logger, stack ...string) {
 	o.Stack = append([]string{}, stack...)
 	o.Logger = logger
 }

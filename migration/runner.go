@@ -26,8 +26,8 @@ type Runner struct {
 	IsDefault          bool
 }
 
-// Logged sets the logger the Runner should use.
-func (r *Runner) Logged(logger *Logger, stack ...string) {
+// SetLogger sets the logger the Runner should use.
+func (r *Runner) SetLogger(logger *Logger, stack ...string) {
 	r.Logger = logger
 	r.Stack = append(stack, r.Stack...)
 }
@@ -70,7 +70,7 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
 	for _, m := range r.Migrations {
 		if r.Logger != nil {
-			m.Logged(r.Logger, r.Stack...)
+			m.SetLogger(r.Logger, r.Stack...)
 		}
 		err = m.Invoke(c, tx)
 		if err != nil && r.ShouldBreakOnError {
