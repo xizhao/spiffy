@@ -8,7 +8,10 @@ import (
 )
 
 func main() {
-	initDb()
+	err := spiffy.SetDefaultDb(spiffy.NewDbConnectionFromEnvironment())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	m := migration.New(
 		"create example_table",
@@ -50,16 +53,10 @@ func main() {
 			),
 		),
 	)
-	m.Logged(migration.NewLogger())
+	m.SetLogger(migration.NewLogger())
 
-	err := m.Test(spiffy.DefaultDb())
+	err = m.Test(spiffy.DefaultDb())
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func initDb() {
-	config := spiffy.NewDbConnectionFromEnvironment()
-	spiffy.CreateDbAlias("main", config)
-	spiffy.SetDefaultAlias("main")
 }
