@@ -47,7 +47,8 @@ func SetDefaultDb(conn *DbConnection) error {
 	aliasName := UUIDv4().ToShortString()
 	CreateDbAlias(aliasName, conn)
 	SetDefaultAlias(aliasName)
-	return nil
+	_, err := conn.Open()
+	return err
 }
 
 // DefaultDb returns a reference to the DbConnection set as default.
