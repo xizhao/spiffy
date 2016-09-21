@@ -7,7 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"unicode"
 
 	exception "github.com/blendlabs/go-exception"
 	"github.com/blendlabs/spiffy"
@@ -191,7 +190,7 @@ func (dfr *DataFileReader) extractDataLine(line string) []interface{} {
 	for index, r := range line {
 		switch state {
 		case 0:
-			if unicode.IsSpace(r) {
+			if r == rune('\t') {
 				continue
 			}
 			state = 1
@@ -201,7 +200,7 @@ func (dfr *DataFileReader) extractDataLine(line string) []interface{} {
 				continue
 			}
 		case 1:
-			if unicode.IsSpace(r) {
+			if r == rune('\t') {
 				state = 0
 				values = append(values, value)
 				value = ""
