@@ -44,7 +44,7 @@ func TestCreateTable(t *testing.T) {
 	err = createTestTable(tableName, nil)
 	assert.Nil(err)
 
-	exists, err := TableExists(spiffy.DefaultDb(), nil, tableName)
+	exists, err := tableExists(spiffy.DefaultDb(), nil, tableName)
 	assert.Nil(err)
 	assert.True(exists, "table does not exist")
 }
@@ -63,7 +63,7 @@ func TestCreateColumn(t *testing.T) {
 	err = createTestColumn(tableName, columnName, tx)
 	assert.Nil(err)
 
-	exists, err := ColumnExists(spiffy.DefaultDb(), tx, tableName, columnName)
+	exists, err := columnExists(spiffy.DefaultDb(), tx, tableName, columnName)
 	assert.Nil(err)
 	assert.True(exists, "column does not exist on table")
 }
@@ -82,7 +82,7 @@ func TestCreateConstraint(t *testing.T) {
 	err = createTestConstraint(tableName, constraintName, tx)
 	assert.Nil(err)
 
-	exists, err := ConstraintExists(spiffy.DefaultDb(), tx, constraintName)
+	exists, err := constraintExists(spiffy.DefaultDb(), tx, constraintName)
 	assert.Nil(err)
 	assert.True(exists, "constraint does not exist")
 }
@@ -101,7 +101,7 @@ func TestCreateIndex(t *testing.T) {
 	err = createTestIndex(tableName, indexName, tx)
 	assert.Nil(err)
 
-	exists, err := IndexExists(spiffy.DefaultDb(), tx, tableName, indexName)
+	exists, err := indexExists(spiffy.DefaultDb(), tx, tableName, indexName)
 	assert.Nil(err)
 	assert.True(exists, "constraint does not exist")
 }

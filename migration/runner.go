@@ -8,9 +8,9 @@ import (
 )
 
 // New creates a new migration series.
-func New(name string, migrations ...Migration) *Runner {
+func New(label string, migrations ...Migration) *Runner {
 	r := &Runner{
-		name: name,
+		label: label,
 	}
 	r.addMigrations(migrations...)
 	return r
@@ -18,7 +18,7 @@ func New(name string, migrations ...Migration) *Runner {
 
 // Runner runs the migrations
 type Runner struct {
-	name               string
+	label              string
 	parent             *Runner
 	shouldAbortOnError bool
 	stack              []string
@@ -33,9 +33,24 @@ func (r *Runner) addMigrations(migrations ...Migration) {
 	}
 }
 
+// Label returns a label for the runner.
+func (r *Runner) Label() string {
+	return r.label
+}
+
 // IsRoot denotes if the runner is the root runner (or not).
 func (r *Runner) IsRoot() bool {
 	return r.parent == nil
+}
+
+// Parent returns the runner's parent.
+func (r *Runner) Parent() *Runner {
+	return r.parent
+}
+
+// SetParent sets the runner's parent.
+func (r *Runner) SetParent(parent *Runner) {
+	r.parent = parent
 }
 
 // ShouldAbortOnError indicates that the runner will abort if it sees an error from a step.

@@ -11,7 +11,7 @@ var (
 func Register(m Migration) error {
 	defaultRunnerLock.Lock()
 	defer defaultRunnerLock.Unlock()
-	defaultRunner.Migrations = append(defaultRunner.Migrations, m)
+	defaultRunner.addMigrations(m)
 	return nil
 }
 

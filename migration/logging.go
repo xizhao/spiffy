@@ -42,26 +42,26 @@ type Logger struct {
 }
 
 // Applyf active actions to the log.
-func (l *Logger) Applyf(stack []string, body string, args ...interface{}) error {
+func (l *Logger) Applyf(o *Operation, body string, args ...interface{}) error {
 	l.applied = l.applied + 1
 	l.Result = "applied"
-	l.write(stack, util.ColorLightGreen, fmt.Sprintf(body, args...))
+	l.write(o, util.ColorLightGreen, fmt.Sprintf(body, args...))
 	return nil
 }
 
 // Skipf passive actions to the log.
-func (l *Logger) Skipf(stack []string, body string, args ...interface{}) error {
+func (l *Logger) Skipf(o *Operation, body string, args ...interface{}) error {
 	l.skipped = l.skipped + 1
 	l.Result = "skipped"
-	l.write(stack, util.ColorGreen, fmt.Sprintf(body, args...))
+	l.write(o, util.ColorGreen, fmt.Sprintf(body, args...))
 	return nil
 }
 
 // Errorf writes errors to the log.
-func (l *Logger) Errorf(stack []string, err error) error {
+func (l *Logger) Errorf(o *Operation, err error) error {
 	l.failed = l.failed + 1
 	l.Result = "failed"
-	l.write(stack, util.ColorRed, fmt.Sprintf("%v", err.Error()))
+	l.write(o, util.ColorRed, fmt.Sprintf("%v", err.Error()))
 	return err
 }
 
@@ -90,7 +90,7 @@ func (l *Logger) WriteStats() {
 	)
 }
 
-func (l *Logger) write(stack []string, color, body string) {
+func (l *Logger) write(o *Operation, color, body string) {
 	if l.Output == nil {
 		return
 	}
@@ -115,26 +115,21 @@ func (l *Logger) write(stack []string, color, body string) {
 		l.colorize("--", util.ColorLightBlack),
 		l.colorizeFixedWidthLeftAligned(l.Result, resultColor, 5),
 		l.colorize("--", util.ColorLightBlack),
-		l.renderStack(stack, color),
+		l.renderStack(o, color),
 		l.colorize("--", util.ColorLightBlack),
 		body,
 	)
 }
 
-func (l *Logger) renderStack(stack []string, color string) string {
+func (l *Logger) renderStack(o *Operation, color string) string {
 	stackSeparator := l.colorize(" > ", util.ColorLightBlack)
 	var renderedStack string
-	for index, stackElement := range stack {
-		if len(stackElement) == 0 {
+	cursor := o.Parent()
+	for cursor != nil {
+		if len(o.Label()) == 0 {
 			continue
 		}
-
-		if index < len(stack)-1 {
-			renderedStack = renderedStack + l.colorize(stackElement, color)
-			renderedStack = renderedStack + stackSeparator
-		} else {
-			renderedStack = renderedStack + stackElement
-		}
+		renderedStack = stackSeparator + o.Label() + renderedStack
 	}
 	return renderedStack
 }

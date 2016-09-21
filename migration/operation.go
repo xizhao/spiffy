@@ -8,36 +8,56 @@ import (
 )
 
 // Step is an alias to NewOperation.
-func Step(action Action, body Statement, args ...string) Migration {
+func Step(action Action, body Statement, args ...string) *Operation {
 	return NewOperation(action, body, args...)
 }
 
 // NewOperation creates a new invocable.
-func NewOperation(action Action, body Statement, args ...string) Migration {
+func NewOperation(action Action, body Statement, args ...string) *Operation {
 	return &Operation{
-		Action: action,
-		Body:   body,
-		Args:   args,
+		action: action,
+		body:   body,
+		args:   args,
 	}
 }
 
 // Operation is a closure for a Operation
 type Operation struct {
-	Stack  []string
-	Logger *Logger
-	Action Action
-	Body   Statement
-	Args   []string
+	label  string
+	parent *Runner
+	logger *Logger
+	action Action
+	body   Statement
+	args   []string
+}
+
+// Label returns the operation label.
+func (o *Operation) Label() string {
+	return o.label
+}
+
+// SetLabel sets the operation label.
+func (o *Operation) SetLabel(label string) {
+	o.label = label
+}
+
+// Parent returns the parent.
+func (o *Operation) Parent() *Runner {
+	return o.parent
+}
+
+// SetParent sets the operation parent.
+func (o *Operation) SetParent(parent *Runner) {
+	o.parent = parent
 }
 
 // SetLogger implements the migration method `SetLogger`.
-func (o *Operation) SetLogger(logger *Logger, stack ...string) {
-	o.Stack = append([]string{}, stack...)
-	o.Logger = logger
+func (o *Operation) SetLogger(logger *Logger) {
+	o.logger = logger
 }
 
 // Test wraps the action in a transaction and rolls the transaction back upon completion.
-func (o Operation) Test(c *spiffy.DbConnection) (err error) {
+func (o *Operation) Test(c *spiffy.DbConnection) (err error) {
 	tx, err := c.Begin()
 	if err != nil {
 		return
@@ -50,7 +70,7 @@ func (o Operation) Test(c *spiffy.DbConnection) (err error) {
 }
 
 // Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
-func (o Operation) Apply(c *spiffy.DbConnection) (err error) {
+func (o *Operation) Apply(c *spiffy.DbConnection) (err error) {
 	tx, err := c.Begin()
 	if err != nil {
 		return
@@ -68,6 +88,6 @@ func (o Operation) Apply(c *spiffy.DbConnection) (err error) {
 }
 
 // Invoke runs the operation against the given connection and transaction.
-func (o Operation) Invoke(c *spiffy.DbConnection, tx *sql.Tx) error {
-	return o.Action(o.Stack, o.Logger, c, tx, o.Body, o.Args...)
+func (o *Operation) Invoke(c *spiffy.DbConnection, tx *sql.Tx) error {
+	return o.action(o, c, tx)
 }
