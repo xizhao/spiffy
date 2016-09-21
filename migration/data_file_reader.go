@@ -14,6 +14,9 @@ import (
 )
 
 const (
+	runeTab          = rune('\t')
+	runeNewline      = rune('\n')
+	null             = `\N`
 	regexCopyExtract = `COPY (.*)? \((.*)?\)`
 )
 
@@ -187,33 +190,38 @@ func (dfr *DataFileReader) extractDataLine(line string) []interface{} {
 	var values []interface{}
 	var value string
 	var state int
-	for index, r := range line {
+
+	appendValue := func() {
+		if value == `\N` {
+			values = append(values, nil)
+		} else {
+			values = append(values, value)
+		}
+	}
+
+	for _, r := range line {
 		switch state {
 		case 0:
-			if r == rune('\t') {
+			if r == runeTab {
 				continue
 			}
 			state = 1
 			value = value + string(r)
-			if index == len(line)-1 {
-				values = append(values, value)
-				continue
-			}
 		case 1:
-			if r == rune('\t') {
+			if r == runeTab {
+				appendValue()
 				state = 0
-				values = append(values, value)
 				value = ""
 				continue
 			}
 
 			value = value + string(r)
-
-			if index == len(line)-1 {
-				values = append(values, value)
-				continue
-			}
 		}
 	}
+
+	if len(value) > 0 {
+		appendValue()
+	}
+
 	return values
 }
