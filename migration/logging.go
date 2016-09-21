@@ -108,13 +108,12 @@ func (l *Logger) write(m Migration, color, body string) {
 		timestamp = l.colorize(time.Now().UTC().Format(time.RFC3339), util.ColorGray) + " "
 	}
 
-	l.Output.Printf("%s%s %s %s %s %s %s %s %s",
+	l.Output.Printf("%s%s %s %s %s %s %s %s",
 		timestamp,
 		l.colorize("migrate", util.ColorBlue),
 		l.colorizeFixedWidthLeftAligned(l.Phase, util.ColorBlue, 5),
 		l.colorize("--", util.ColorLightBlack),
 		l.colorizeFixedWidthLeftAligned(l.Result, resultColor, 5),
-		l.colorize("--", util.ColorLightBlack),
 		l.renderStack(m, color),
 		l.colorize("--", util.ColorLightBlack),
 		body,
@@ -126,7 +125,9 @@ func (l *Logger) renderStack(m Migration, color string) string {
 	var renderedStack string
 	cursor := m.Parent()
 	for cursor != nil {
-		renderedStack = stackSeparator + cursor.Label() + renderedStack
+		if len(cursor.Label()) > 0 {
+			renderedStack = stackSeparator + cursor.Label() + renderedStack
+		}
 		cursor = cursor.Parent()
 	}
 	return renderedStack

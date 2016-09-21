@@ -118,6 +118,9 @@ func (dfr *DataFileReader) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error
 		if strings.HasPrefix(line, "--") {
 			continue
 		}
+
+		println(state, line)
+
 		switch state {
 		case 0:
 			if strings.HasPrefix(line, "COPY") {
