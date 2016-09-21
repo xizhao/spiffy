@@ -14,48 +14,36 @@ func main() {
 	}
 
 	m := migration.New(
-		"create example_table",
+		"create & fill `test_vocab`",
 		migration.New(
-			"creating the table",
+			"create `test_vocab` table",
 			migration.Step(
 				migration.CreateTable,
 				migration.Body(
-					"CREATE TABLE example_table (id int not null, name varchar(32) not null);",
-					"ALTER TABLE example_table ADD CONSTRAINT pk_example_table_id PRIMARY KEY(id);",
+					"CREATE TABLE test_vocab (id serial not null, word varchar(32) not null);",
+					"ALTER TABLE test_vocab ADD CONSTRAINT pk_test_vocab_id PRIMARY KEY(id);",
 				),
-				"example_table",
-			),
-			migration.Step(
-				migration.AlwaysRun,
-				migration.Body(
-					`INSERT INTO example_table (id, name) select 1, 'foo' where not exists ( select 1 from example_table where id = 1)`,
-				),
+				"test_vocab",
 			),
 		),
 		migration.New(
-			"adding a column",
-			migration.Step(
-				migration.CreateColumn,
-				migration.Body(
-					"ALTER TABLE example_table ADD foo varchar(64);",
-				),
-				"example_table", "foo",
-			),
+			"fill `test_vocab`",
+			migration.ReadDataFile("data.sql"),
 		),
-		migration.New(
-			"drop the table",
+		/*migration.New(
+			"drop `test_vocab` table",
 			migration.Step(
 				migration.AlterTable,
 				migration.Body(
-					"DROP TABLE example_table;",
+					"DROP TABLE test_vocab;",
 				),
-				"example_table",
+				"test_vocab",
 			),
-		),
+		),*/
 	)
 	m.SetLogger(migration.NewLogger())
-
-	err = m.Test(spiffy.DefaultDb())
+	m.SetShouldAbortOnError(true)
+	err = m.Apply(spiffy.DefaultDb())
 	if err != nil {
 		log.Fatal(err)
 	}
