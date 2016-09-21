@@ -30,7 +30,7 @@ func main() {
 			"fill `test_vocab`",
 			migration.ReadDataFile("data.sql"),
 		),
-		/*migration.New(
+		migration.New(
 			"drop `test_vocab` table",
 			migration.Step(
 				migration.AlterTable,
@@ -39,7 +39,7 @@ func main() {
 				),
 				"test_vocab",
 			),
-		),*/
+		),
 	)
 	m.SetLogger(migration.NewLogger())
 	m.SetShouldAbortOnError(true)
