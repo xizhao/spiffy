@@ -2,6 +2,7 @@ package migration
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/spiffy"
@@ -38,6 +39,11 @@ func (r *Runner) Label() string {
 	return r.label
 }
 
+// SetLabel sets the migration label.
+func (r *Runner) SetLabel(value string) {
+	r.label = value
+}
+
 // IsRoot denotes if the runner is the root runner (or not).
 func (r *Runner) IsRoot() bool {
 	return r.parent == nil
@@ -63,30 +69,77 @@ func (r *Runner) SetShouldAbortOnError(value bool) {
 	r.shouldAbortOnError = value
 }
 
+// Logger returns the logger.
+func (r *Runner) Logger() *Logger {
+	return r.logger
+}
+
 // SetLogger sets the logger the Runner should use.
 func (r *Runner) SetLogger(logger *Logger) {
 	r.logger = logger
 }
 
+// IsTransactionIsolated returns if the migration is transaction isolated.
+func (r *Runner) IsTransactionIsolated() bool {
+	return true
+}
+
 // Test wraps the action in a transaction and rolls the transaction back upon completion.
-func (r Runner) Test(c *spiffy.DbConnection) (err error) {
-	tx, err := c.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err = exception.Wrap(tx.Rollback())
-	}()
+func (r *Runner) Test(c *spiffy.DbConnection, optionalTx ...*sql.Tx) (err error) {
 	if r.logger != nil {
 		r.logger.Phase = "test"
 	}
-	err = r.Invoke(c, tx)
+
+	for _, m := range r.migrations {
+		if r.logger != nil {
+			m.SetLogger(r.logger)
+		}
+
+		err = r.invokeMigration(true, m, c, optionalTx...)
+		if err != nil && r.shouldAbortOnError {
+			break
+		}
+	}
 	return
 }
 
 // Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
-func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
-	tx, err := c.Begin()
+func (r *Runner) Apply(c *spiffy.DbConnection, optionalTx ...*sql.Tx) (err error) {
+	if r.logger != nil {
+		r.logger.Phase = "apply"
+	}
+
+	for _, m := range r.migrations {
+		if r.logger != nil {
+			m.SetLogger(r.logger)
+		}
+
+		err = r.invokeMigration(false, m, c, optionalTx...)
+		if err != nil && r.shouldAbortOnError {
+			break
+		}
+	}
+
+	if r.IsRoot() && r.logger != nil {
+		r.logger.WriteStats()
+	}
+	return
+}
+
+func (r *Runner) invokeMigration(isTest bool, m Migration, c *spiffy.DbConnection, optionalTx ...*sql.Tx) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", err)
+		}
+	}()
+
+	if m.IsTransactionIsolated() {
+		err = m.Apply(c, spiffy.OptionalTx(optionalTx...))
+		return
+	}
+
+	var tx *sql.Tx
+	tx, err = c.Begin()
 	if err != nil {
 		return err
 	}
@@ -97,27 +150,6 @@ func (r Runner) Apply(c *spiffy.DbConnection) (err error) {
 			err = exception.WrapMany(err, exception.New(tx.Rollback()))
 		}
 	}()
-	if r.logger != nil {
-		r.logger.Phase = "apply"
-	}
-	err = r.Invoke(c, tx)
-	return
-}
-
-// Invoke runs the suite against a given connection and transaction.
-func (r Runner) Invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error) {
-	for _, m := range r.migrations {
-		if r.logger != nil {
-			m.SetLogger(r.logger)
-		}
-		err = m.Invoke(c, tx)
-		if err != nil && r.shouldAbortOnError {
-			break
-		}
-	}
-
-	if r.IsRoot() && r.logger != nil {
-		r.logger.WriteStats()
-	}
+	err = m.Apply(c, tx)
 	return
 }

@@ -13,25 +13,25 @@ import (
 func createTestTable(tableName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE TABLE %s (id int, name varchar(32));", tableName)
 	step := Step(CreateTable, Body(body), tableName)
-	return step.Invoke(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.DefaultDb(), tx)
 }
 
 func createTestColumn(tableName, columnName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD %s varchar(32);", tableName, columnName)
 	step := Step(CreateColumn, Body(body), tableName, columnName)
-	return step.Invoke(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.DefaultDb(), tx)
 }
 
 func createTestConstraint(tableName, constraintName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (name);", tableName, constraintName)
 	step := Step(CreateColumn, Body(body), tableName, constraintName)
-	return step.Invoke(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.DefaultDb(), tx)
 }
 
 func createTestIndex(tableName, indexName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE INDEX %s ON %s (name);", indexName, tableName)
 	step := Step(CreateIndex, Body(body), tableName, indexName)
-	return step.Invoke(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.DefaultDb(), tx)
 }
 
 func TestCreateTable(t *testing.T) {

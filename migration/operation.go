@@ -3,7 +3,6 @@ package migration
 import (
 	"database/sql"
 
-	"github.com/blendlabs/go-exception"
 	"github.com/blendlabs/spiffy"
 )
 
@@ -51,43 +50,30 @@ func (o *Operation) SetParent(parent *Runner) {
 	o.parent = parent
 }
 
+// Logger returns the logger
+func (o *Operation) Logger() *Logger {
+	return o.logger
+}
+
 // SetLogger implements the migration method `SetLogger`.
 func (o *Operation) SetLogger(logger *Logger) {
 	o.logger = logger
 }
 
+// IsTransactionIsolated returns if this migration requires it's own migration
+func (o *Operation) IsTransactionIsolated() bool {
+	return false
+}
+
 // Test wraps the action in a transaction and rolls the transaction back upon completion.
-func (o *Operation) Test(c *spiffy.DbConnection) (err error) {
-	tx, err := c.Begin()
-	if err != nil {
-		return
-	}
-	defer func() {
-		err = exception.Wrap(tx.Rollback())
-	}()
-	err = o.Invoke(c, tx)
+func (o *Operation) Test(c *spiffy.DbConnection, optionalTx ...*sql.Tx) (err error) {
+	err = o.Apply(c, optionalTx...)
 	return
 }
 
 // Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
-func (o *Operation) Apply(c *spiffy.DbConnection) (err error) {
-	tx, err := c.Begin()
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err == nil {
-			err = exception.Wrap(tx.Commit())
-		} else {
-			err = exception.WrapMany(err, exception.New(tx.Rollback()))
-		}
-	}()
-
-	err = o.Invoke(c, tx)
+func (o *Operation) Apply(c *spiffy.DbConnection, optionalTx ...*sql.Tx) (err error) {
+	tx := spiffy.OptionalTx(optionalTx...)
+	err = o.action(o, c, tx)
 	return
-}
-
-// Invoke runs the operation against the given connection and transaction.
-func (o *Operation) Invoke(c *spiffy.DbConnection, tx *sql.Tx) error {
-	return o.action(o, c, tx)
 }
