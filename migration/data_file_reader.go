@@ -142,6 +142,8 @@ func (dfr *DataFileReader) invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error
 	var pieces []interface{}
 
 	for readErr == nil {
+		lineBuffer.Reset()
+
 		switch state {
 		case 0:
 			cursor, readErr = dfr.readLine(f, cursor, readBuffer, lineBuffer)
