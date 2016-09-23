@@ -34,6 +34,12 @@ func createTestIndex(tableName, indexName string, tx *sql.Tx) error {
 	return step.Apply(spiffy.DefaultDb(), tx)
 }
 
+func createTestRole(roleName string, tx *sql.Tx) error {
+	body := fmt.Sprintf("CREATE ROLE %s;", roleName)
+	step := Step(CreateRole, Body(body), roleName)
+	return step.Apply(spiffy.DefaultDb(), tx)
+}
+
 func TestCreateTable(t *testing.T) {
 	assert := assert.New(t)
 	tx, err := spiffy.DefaultDb().Begin()
@@ -104,4 +110,19 @@ func TestCreateIndex(t *testing.T) {
 	exists, err := indexExists(spiffy.DefaultDb(), tx, tableName, indexName)
 	assert.Nil(err)
 	assert.True(exists, "constraint does not exist")
+}
+
+func TestCreateRole(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := spiffy.DefaultDb().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	roleName := util.RandomString(32)
+	err = createTestRole(roleName, tx)
+	assert.Nil(err)
+
+	exists, err := roleExists(spiffy.DefaultDb(), tx, roleName)
+	assert.Nil(err)
+	assert.True(exists, "role does not exist")
 }

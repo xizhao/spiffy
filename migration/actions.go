@@ -17,6 +17,7 @@ const (
 	nounTable      = "table"
 	nounIndex      = "index"
 	nounConstraint = "constraint"
+	nounRole       = "role"
 	nounAlways     = "always"
 )
 
@@ -145,6 +146,11 @@ func CreateIndex(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
 	return actionImpl2(o, verbCreate, nounIndex, indexExists, []string{"table_name", "index_name"}, c, tx)
 }
 
+// CreateRole creates a new role if it doesn't exist.
+func CreateRole(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
+	return actionImpl1(o, verbCreate, nounRole, roleExists, "role_name", c, tx)
+}
+
 // AlterColumn alters an existing column, erroring if it doesn't exist
 func AlterColumn(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
 	return actionImpl2(o, verbAlter, nounTable, columnExists, []string{"table_name", "column_name"}, c, tx)
@@ -163,6 +169,11 @@ func AlterTable(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
 // AlterIndex alters an existing index, erroring if it doesn't exist
 func AlterIndex(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
 	return actionImpl2(o, verbAlter, nounIndex, indexExists, []string{"table_name", "index_name"}, c, tx)
+}
+
+// AlterRole alters an existing role in the db
+func AlterRole(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
+	return actionImpl1(o, verbAlter, nounRole, roleExists, "role_name", c, tx)
 }
 
 // --------------------------------------------------------------------------------
@@ -187,4 +198,9 @@ func constraintExists(c *spiffy.DbConnection, tx *sql.Tx, constraintName string)
 // IndexExists returns if a index exists on a table on the given connection.
 func indexExists(c *spiffy.DbConnection, tx *sql.Tx, tableName, indexName string) (bool, error) {
 	return c.QueryInTransaction(`SELECT 1 FROM pg_catalog.pg_index ix join pg_catalog.pg_class t on t.oid = ix.indrelid join pg_catalog.pg_class i on i.oid = ix.indexrelid WHERE t.relname = $1 and i.relname = $2 and t.relkind = 'r'`, tx, strings.ToLower(tableName), strings.ToLower(indexName)).Any()
+}
+
+// roleExists returns if a role exists or not.
+func roleExists(c *spiffy.DbConnection, tx *sql.Tx, roleName string) (bool, error) {
+	return c.QueryInTransaction(`SELECT 1 FROM pg_roles WHERE rolname ilike $1`, tx, roleName).Any()
 }
