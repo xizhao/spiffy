@@ -46,7 +46,7 @@ func TestCreateTable(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.RandomString(12)
+	tableName := util.String.RandomString(12)
 	err = createTestTable(tableName, nil)
 	assert.Nil(err)
 
@@ -61,11 +61,11 @@ func TestCreateColumn(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.RandomString(12)
+	tableName := util.String.RandomString(12)
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	columnName := util.RandomString(12)
+	columnName := util.String.RandomString(12)
 	err = createTestColumn(tableName, columnName, tx)
 	assert.Nil(err)
 
@@ -80,11 +80,11 @@ func TestCreateConstraint(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.RandomString(12)
+	tableName := util.String.RandomString(12)
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	constraintName := fmt.Sprintf("uk_%s_%s", tableName, util.RandomString(12))
+	constraintName := fmt.Sprintf("uk_%s_%s", tableName, util.String.RandomString(12))
 	err = createTestConstraint(tableName, constraintName, tx)
 	assert.Nil(err)
 
@@ -99,11 +99,11 @@ func TestCreateIndex(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.RandomString(12)
+	tableName := util.String.RandomString(12)
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	indexName := fmt.Sprintf("ix_%s_%s", tableName, util.RandomString(12))
+	indexName := fmt.Sprintf("ix_%s_%s", tableName, util.String.RandomString(12))
 	err = createTestIndex(tableName, indexName, tx)
 	assert.Nil(err)
 
@@ -118,7 +118,7 @@ func TestCreateRole(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	roleName := util.RandomString(32)
+	roleName := util.String.RandomString(32)
 	err = createTestRole(roleName, tx)
 	assert.Nil(err)
 
