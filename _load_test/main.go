@@ -88,6 +88,10 @@ func baselineAccess(db *sql.DB, queryLimit int) ([]testObject, error) {
 		return results, err
 	}
 
+	if res.Err() != nil {
+		return results, res.Err()
+	}
+
 	for res.Next() {
 		to := newTestObject()
 		err = to.PopulateInternal(res)
