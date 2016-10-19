@@ -260,6 +260,7 @@ func (dbc *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error
 	if dbErr != nil {
 		return nil, exception.Newf("Postgres Error: %v", dbErr)
 	}
+
 	stmt, stmtErr := dbConn.Prepare(statement)
 	if stmtErr != nil {
 		return nil, exception.Newf("Postgres Error: %v", stmtErr)

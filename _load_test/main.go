@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	itemCount   = 1 << 12
-	queryCount  = 1 << 10
-	threadCount = 64
+	createCount    = 1 << 12
+	selectCount    = 512
+	iterationCount = 64
+	threadCount    = 128
 )
 
 const (
@@ -81,9 +82,16 @@ func seedObjects(count int) error {
 	return nil
 }
 
-func baselineAccess(db *sql.DB, queryLimit int) ([]testObject, error) {
+func baselineAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, error) {
 	var results []testObject
-	res, err := db.Query(selectQuery, queryLimit)
+	var err error
+
+	stmt, err := db.Connection.Prepare(selectQuery)
+	if err != nil {
+		return results, err
+	}
+
+	res, err := stmt.Query(queryLimit)
 	if err != nil {
 		return results, err
 	}
@@ -104,14 +112,15 @@ func baselineAccess(db *sql.DB, queryLimit int) ([]testObject, error) {
 	return results, nil
 }
 
-func spiffyAccess(_ *sql.DB, queryLimit int) ([]testObject, error) {
+func spiffyAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, error) {
 	var results []testObject
-	err := spiffy.DefaultDb().Query(selectQuery, queryLimit).OutMany(&results)
+	err := db.Query(selectQuery, queryLimit).OutMany(&results)
 	return results, err
 }
 
-func benchHarness(parallelism int, queryLimit int, accessFunc func(*sql.DB, int) ([]testObject, error)) ([]time.Duration, error) {
+func benchHarness(parallelism int, queryLimit int, accessFunc func(*spiffy.DbConnection, int) ([]testObject, error)) ([]time.Duration, error) {
 	var durations []time.Duration
+	var durationsLock sync.Mutex
 	var waitHandle = sync.WaitGroup{}
 	var errors = make(chan error, parallelism)
 
@@ -119,34 +128,39 @@ func benchHarness(parallelism int, queryLimit int, accessFunc func(*sql.DB, int)
 	for threadID := 0; threadID < parallelism; threadID++ {
 		go func() {
 			defer waitHandle.Done()
-			start := time.Now()
-			items, err := accessFunc(spiffy.DefaultDb().Connection, queryLimit)
-			if err != nil {
-				errors <- err
-				return
-			}
 
-			if len(items) < queryLimit {
-				errors <- fmt.Errorf("Returned item count less than %d", queryLimit)
-				return
-			}
+			for iteration := 0; iteration < iterationCount; iteration++ {
+				start := time.Now()
+				items, err := accessFunc(spiffy.DefaultDb(), queryLimit)
+				if err != nil {
+					errors <- err
+					return
+				}
 
-			if len(items[len(items)>>1].UUID) == 0 {
-				errors <- fmt.Errorf("Returned items have empty `UUID` fields")
-				return
-			}
+				durationsLock.Lock()
+				durations = append(durations, time.Since(start))
+				durationsLock.Unlock()
 
-			if len(items[len(items)>>1].Name) == 0 {
-				errors <- fmt.Errorf("Returned items have empty `Name` fields")
-				return
-			}
+				if len(items) < queryLimit {
+					errors <- fmt.Errorf("Returned item count less than %d", queryLimit)
+					return
+				}
 
-			if items[len(items)>>1].Variance == 0 {
-				errors <- fmt.Errorf("Returned items have empty `Variance`")
-				return
-			}
+				if len(items[len(items)>>1].UUID) == 0 {
+					errors <- fmt.Errorf("Returned items have empty `UUID` fields")
+					return
+				}
 
-			durations = append(durations, time.Since(start))
+				if len(items[len(items)>>1].Name) == 0 {
+					errors <- fmt.Errorf("Returned items have empty `Name` fields")
+					return
+				}
+
+				if items[len(items)>>1].Variance == 0 {
+					errors <- fmt.Errorf("Returned items have empty `Variance`")
+					return
+				}
+			}
 		}()
 	}
 	waitHandle.Wait()
@@ -168,22 +182,26 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = seedObjects(itemCount)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// do baseline query
-	baselineTimings, err := benchHarness(threadCount, queryCount, baselineAccess)
+	err = seedObjects(createCount)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// do spiffy query
-	spiffyTimings, err := benchHarness(threadCount, queryCount, spiffyAccess)
+	spiffyStart := time.Now()
+	spiffyTimings, err := benchHarness(threadCount, selectCount, spiffyAccess)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("Spiffy Elapsed: %v\n", time.Since(spiffyStart))
+
+	// do baseline query
+	baselineStart := time.Now()
+	baselineTimings, err := benchHarness(threadCount, selectCount, baselineAccess)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Baseline Elapsed: %v\n", time.Since(baselineStart))
 
 	fmt.Println("Timings:")
 	fmt.Printf("\tAvg Baseline  : %v\n", util.Math.MeanOfDuration(baselineTimings))
