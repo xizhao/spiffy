@@ -92,7 +92,7 @@ func (b benchObj) TableName() string {
 
 func createTable(tx *sql.Tx) error {
 	createSQL := `CREATE TABLE IF NOT EXISTS bench_object (id serial not null, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
-	return DefaultDb().ExecInTransaction(createSQL, tx)
+	return DefaultDb().ExecInTx(createSQL, tx)
 }
 
 func createObject(index int, tx *sql.Tx) error {
@@ -102,7 +102,7 @@ func createObject(index int, tx *sql.Tx) error {
 	obj.Amount = 1000.0 + (5.0 * float32(index))
 	obj.Pending = index%2 == 0
 	obj.Category = fmt.Sprintf("category_%d", index)
-	return exception.Wrap(DefaultDb().CreateInTransaction(&obj, tx))
+	return exception.Wrap(DefaultDb().CreateInTx(&obj, tx))
 }
 
 func seedObjects(count int, tx *sql.Tx) error {
@@ -149,6 +149,6 @@ func readManual(tx *sql.Tx) ([]benchObj, error) {
 
 func readOrm(tx *sql.Tx) ([]benchObj, error) {
 	objs := []benchObj{}
-	allErr := DefaultDb().GetAllInTransaction(&objs, tx)
+	allErr := DefaultDb().GetAllInTx(&objs, tx)
 	return objs, allErr
 }

@@ -19,7 +19,7 @@ func TestQueryResultEach(t *testing.T) {
 
 	var all []benchObj
 	var popErr error
-	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).Each(func(r *sql.Rows) error {
+	err = DefaultDb().QueryInTx("select * from bench_object", tx).Each(func(r *sql.Rows) error {
 		bo := benchObj{}
 		popErr = bo.Populate(r)
 		if popErr != nil {
@@ -42,17 +42,17 @@ func TestQueryResultAny(t *testing.T) {
 	a.Nil(err)
 
 	var all []benchObj
-	allErr := DefaultDb().GetAllInTransaction(&all, tx)
+	allErr := DefaultDb().GetAllInTx(&all, tx)
 	a.Nil(allErr)
 	a.NotEmpty(all)
 
 	obj := all[0]
 
-	exists, err := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, obj.ID).Any()
+	exists, err := DefaultDb().QueryInTx("select 1 from bench_object where id = $1", tx, obj.ID).Any()
 	a.Nil(err)
 	a.True(exists)
 
-	notExists, err := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, -1).Any()
+	notExists, err := DefaultDb().QueryInTx("select 1 from bench_object where id = $1", tx, -1).Any()
 	a.Nil(err)
 	a.False(notExists)
 }
@@ -67,17 +67,17 @@ func TestQueryResultNone(t *testing.T) {
 	a.Nil(seedErr)
 
 	var all []benchObj
-	allErr := DefaultDb().GetAllInTransaction(&all, tx)
+	allErr := DefaultDb().GetAllInTx(&all, tx)
 	a.Nil(allErr)
 	a.NotEmpty(all)
 
 	obj := all[0]
 
-	exists, existsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, obj.ID).None()
+	exists, existsErr := DefaultDb().QueryInTx("select 1 from bench_object where id = $1", tx, obj.ID).None()
 	a.Nil(existsErr)
 	a.False(exists)
 
-	notExists, notExistsErr := DefaultDb().QueryInTransaction("select 1 from bench_object where id = $1", tx, -1).None()
+	notExists, notExistsErr := DefaultDb().QueryInTx("select 1 from bench_object where id = $1", tx, -1).None()
 	a.Nil(notExistsErr)
 	a.True(notExists)
 }
@@ -91,14 +91,14 @@ func TestQueryResultPanicHandling(t *testing.T) {
 	err = seedObjects(10, tx)
 	a.Nil(err)
 
-	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).Each(func(r *sql.Rows) error {
+	err = DefaultDb().QueryInTx("select * from bench_object", tx).Each(func(r *sql.Rows) error {
 		panic("THIS IS A TEST PANIC")
 	})
 	a.NotNil(err) // this should have the result of the panic
 
 	// we now test to see if the connection is still in a good state, i.e. that we recovered from the panic
 	// and closed the connection / rows / statement
-	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+	hasRows, err := DefaultDb().QueryInTx("select * from bench_object", tx).Any()
 	a.Nil(err)
 	a.True(hasRows)
 }
@@ -167,27 +167,27 @@ func TestMultipleQueriesPerTransactionWithFailure(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		hasRows, err := DefaultDb().QueryInTx("select * from bench_object", tx).Any()
 		a.NotNil(err)
 		a.False(hasRows)
 	}()
 
 	go func() {
 		defer wg.Done()
-		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		hasRows, err := DefaultDb().QueryInTx("select * from bench_object", tx).Any()
 		a.NotNil(err)
 		a.False(hasRows)
 	}()
 
 	go func() {
 		defer wg.Done()
-		hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+		hasRows, err := DefaultDb().QueryInTx("select * from bench_object", tx).Any()
 		a.NotNil(err)
 		a.False(hasRows)
 	}()
 
 	wg.Wait()
-	hasRows, err := DefaultDb().QueryInTransaction("select * from bench_object", tx).Any()
+	hasRows, err := DefaultDb().QueryInTx("select * from bench_object", tx).Any()
 
 	a.NotNil(err)
 	a.False(hasRows)

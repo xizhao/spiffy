@@ -33,7 +33,7 @@ func TestMakeSliceOfType(t *testing.T) {
 	sliceOfT, castOk := makeSliceOfType(myType).(*[]benchObj)
 	a.True(castOk)
 
-	allErr := DefaultDb().GetAllInTransaction(sliceOfT, tx)
+	allErr := DefaultDb().GetAllInTx(sliceOfT, tx)
 	a.Nil(allErr)
 	a.NotEmpty(*sliceOfT)
 }

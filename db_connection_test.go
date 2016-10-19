@@ -71,23 +71,23 @@ func TestQuery(t *testing.T) {
 	a.Nil(err)
 
 	objs := []benchObj{}
-	err = DefaultDb().QueryInTransaction("select * from bench_object", tx).OutMany(&objs)
+	err = DefaultDb().QueryInTx("select * from bench_object", tx).OutMany(&objs)
 
 	a.Nil(err)
 	a.NotEmpty(objs)
 
 	all := []benchObj{}
-	err = DefaultDb().GetAllInTransaction(&all, tx)
+	err = DefaultDb().GetAllInTx(&all, tx)
 	a.Nil(err)
 	a.Equal(len(objs), len(all))
 
 	obj := benchObj{}
-	err = DefaultDb().QueryInTransaction("select * from bench_object limit 1", tx).Out(&obj)
+	err = DefaultDb().QueryInTx("select * from bench_object limit 1", tx).Out(&obj)
 	a.Nil(err)
 	a.NotEqual(obj.ID, 0)
 
 	var id int
-	err = DefaultDb().QueryInTransaction("select id from bench_object limit 1", tx).Scan(&id)
+	err = DefaultDb().QueryInTx("select id from bench_object limit 1", tx).Scan(&id)
 	a.Nil(err)
 	a.NotEqual(id, 0)
 }
@@ -102,42 +102,42 @@ func TestCRUDMethods(t *testing.T) {
 	a.Nil(seedErr)
 
 	objs := []benchObj{}
-	queryErr := DefaultDb().QueryInTransaction("select * from bench_object", tx).OutMany(&objs)
+	queryErr := DefaultDb().QueryInTx("select * from bench_object", tx).OutMany(&objs)
 
 	a.Nil(queryErr)
 	a.NotEmpty(objs)
 
 	all := []benchObj{}
-	allErr := DefaultDb().GetAllInTransaction(&all, tx)
+	allErr := DefaultDb().GetAllInTx(&all, tx)
 	a.Nil(allErr)
 	a.Equal(len(objs), len(all))
 
 	sampleObj := all[0]
 
 	getTest := benchObj{}
-	getTestErr := DefaultDb().GetByIDInTransaction(&getTest, tx, sampleObj.ID)
+	getTestErr := DefaultDb().GetByIDInTx(&getTest, tx, sampleObj.ID)
 	a.Nil(getTestErr)
 	a.Equal(sampleObj.ID, getTest.ID)
 
-	exists, existsErr := DefaultDb().ExistsInTransaction(&getTest, tx)
+	exists, existsErr := DefaultDb().ExistsInTx(&getTest, tx)
 	a.Nil(existsErr)
 	a.True(exists)
 
 	getTest.Name = "not_a_test_object"
 
-	updateErr := DefaultDb().UpdateInTransaction(&getTest, tx)
+	updateErr := DefaultDb().UpdateInTx(&getTest, tx)
 	a.Nil(updateErr)
 
 	verify := benchObj{}
-	verifyErr := DefaultDb().GetByIDInTransaction(&verify, tx, getTest.ID)
+	verifyErr := DefaultDb().GetByIDInTx(&verify, tx, getTest.ID)
 	a.Nil(verifyErr)
 	a.Equal(getTest.Name, verify.Name)
 
-	deleteErr := DefaultDb().DeleteInTransaction(&verify, tx)
+	deleteErr := DefaultDb().DeleteInTx(&verify, tx)
 	a.Nil(deleteErr)
 
 	delVerify := benchObj{}
-	delVerifyErr := DefaultDb().GetByIDInTransaction(&delVerify, tx, getTest.ID)
+	delVerifyErr := DefaultDb().GetByIDInTx(&delVerify, tx, getTest.ID)
 	a.Nil(delVerifyErr)
 }
 
@@ -157,7 +157,7 @@ func TestExec(t *testing.T) {
 	a.Nil(err)
 	defer tx.Rollback()
 
-	err = DefaultDb().ExecInTransaction("select 'ok!'", tx)
+	err = DefaultDb().ExecInTx("select 'ok!'", tx)
 	a.Nil(err)
 }
 
@@ -230,7 +230,7 @@ func TestDbConnectionExecuteListeners(t *testing.T) {
 		a.NotZero(dbe.Elapsed)
 	})
 
-	err = DefaultDb().ExecInTransaction("select 'ok!'", tx)
+	err = DefaultDb().ExecInTx("select 'ok!'", tx)
 	a.Nil(err)
 }
 
@@ -258,7 +258,7 @@ func TestDbConnectionQueryListeners(t *testing.T) {
 	})
 
 	var result string
-	err = DefaultDb().QueryInTransaction("select 'ok!'", tx).Scan(&result)
+	err = DefaultDb().QueryInTx("select 'ok!'", tx).Scan(&result)
 	a.Nil(err)
 	a.Equal("ok!", result)
 }
