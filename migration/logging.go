@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/blendlabs/go-util"
@@ -121,7 +122,7 @@ func (l *Logger) write(m Migration, color util.AnsiColorCode, body string) {
 }
 
 func (l *Logger) renderStack(m Migration, color util.AnsiColorCode) string {
-	stackSeparator := l.colorize(" > ", util.ColorLightBlack)
+	stackSeparator := fmt.Sprintf(" %s ", l.colorize(">", util.ColorLightBlack))
 	var renderedStack string
 	cursor := m.Parent()
 	for cursor != nil {
@@ -130,5 +131,5 @@ func (l *Logger) renderStack(m Migration, color util.AnsiColorCode) string {
 		}
 		cursor = cursor.Parent()
 	}
-	return renderedStack
+	return strings.TrimPrefix(renderedStack, " ")
 }
