@@ -76,7 +76,7 @@ func (l *Logger) colorizeFixedWidthLeftAligned(text string, color util.AnsiColor
 	fixedToken := fmt.Sprintf("%%-%ds", width)
 	fixedMessage := fmt.Sprintf(fixedToken, text)
 	if l.ColorizeOutput {
-		return fmt.Sprintf("%s%s%s", string(color), fixedMessage, string(util.ColorReset))
+		return color.Apply(fixedMessage)
 	}
 	return fixedMessage
 }
