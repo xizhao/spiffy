@@ -14,7 +14,9 @@ func TestNewAunauthenticatedDbConnection(t *testing.T) {
 	conn := NewDbConnection("test_host", "test_database")
 	a.Equal("test_host", conn.Host)
 	a.Equal("test_database", conn.Database)
-	a.Equal("postgres://test_host/test_database?sslmode=disable", conn.CreatePostgresConnectionString())
+	str, err := conn.CreatePostgresConnectionString()
+	a.Nil(err)
+	a.Equal("postgres://test_host/test_database?sslmode=disable", str)
 }
 
 func TestNewDbConnection(t *testing.T) {
@@ -24,8 +26,9 @@ func TestNewDbConnection(t *testing.T) {
 	a.Equal("test_database", conn.Database)
 	a.Equal("test_user", conn.Username)
 	a.Equal("test_password", conn.Password)
-
-	a.Equal("postgres://test_user:test_password@test_host/test_database?sslmode=disable", conn.CreatePostgresConnectionString())
+	str, err := conn.CreatePostgresConnectionString()
+	a.Nil(err)
+	a.Equal("postgres://test_user:test_password@test_host/test_database?sslmode=disable", str)
 }
 
 func TestNewSSLDbConnection(t *testing.T) {
@@ -36,17 +39,19 @@ func TestNewSSLDbConnection(t *testing.T) {
 	a.Equal("test_user", conn.Username)
 	a.Equal("test_password", conn.Password)
 	a.Equal("a good one", conn.SSLMode)
-	a.Equal(`postgres://test_user:test_password@test_host/test_database?sslmode=a+good+one`, conn.CreatePostgresConnectionString())
+	str, err := conn.CreatePostgresConnectionString()
+	a.Nil(err)
+	a.Equal(`postgres://test_user:test_password@test_host/test_database?sslmode=a+good+one`, str)
 }
 
 // TestConnectionSanityCheck tests if we can connect to the db, a.k.a., if the underlying driver works.
 func TestConnectionSanityCheck(t *testing.T) {
+	assert := assert.New(t)
 	config := NewDbConnectionFromEnvironment()
-	_, dbErr := sql.Open("postgres", config.CreatePostgresConnectionString())
-	if dbErr != nil {
-		t.Error("Error opening database")
-		t.FailNow()
-	}
+	str, err := config.CreatePostgresConnectionString()
+	assert.Nil(err)
+	_, err = sql.Open("postgres", str)
+	assert.Nil(err)
 }
 
 func TestPrepare(t *testing.T) {

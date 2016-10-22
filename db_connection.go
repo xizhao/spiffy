@@ -169,10 +169,15 @@ func (dbc *DbConnection) FireEvent(listeners []DbEventListener, query string, el
 }
 
 // CreatePostgresConnectionString returns a sql connection string from a given set of DbConnection parameters.
-func (dbc *DbConnection) CreatePostgresConnectionString() string {
+func (dbc *DbConnection) CreatePostgresConnectionString() (string, error) {
 	if len(dbc.DSN) != 0 {
-		return dbc.DSN
+		return dbc.DSN, nil
 	}
+
+	if len(dbc.Database) == 0 {
+		return "", exception.New("`DB_NAME` is required to open a new connection")
+	}
+
 	sslMode := "?sslmode=disable"
 	if len(dbc.SSLMode) > 0 {
 		sslMode = fmt.Sprintf("?sslmode=%s", url.QueryEscape(dbc.SSLMode))
@@ -185,11 +190,11 @@ func (dbc *DbConnection) CreatePostgresConnectionString() string {
 
 	if dbc.Username != "" {
 		if dbc.Password != "" {
-			return fmt.Sprintf("postgres://%s:%s@%s%s/%s%s", url.QueryEscape(dbc.Username), url.QueryEscape(dbc.Password), dbc.Host, portSegment, dbc.Database, sslMode)
+			return fmt.Sprintf("postgres://%s:%s@%s%s/%s%s", url.QueryEscape(dbc.Username), url.QueryEscape(dbc.Password), dbc.Host, portSegment, dbc.Database, sslMode), nil
 		}
-		return fmt.Sprintf("postgres://%s@%s%s/%s%s", url.QueryEscape(dbc.Username), dbc.Host, portSegment, dbc.Database, sslMode)
+		return fmt.Sprintf("postgres://%s@%s%s/%s%s", url.QueryEscape(dbc.Username), dbc.Host, portSegment, dbc.Database, sslMode), nil
 	}
-	return fmt.Sprintf("postgres://%s%s/%s%s", dbc.Host, portSegment, dbc.Database, sslMode)
+	return fmt.Sprintf("postgres://%s%s/%s%s", dbc.Host, portSegment, dbc.Database, sslMode), nil
 }
 
 // Begin starts a new transaction.
@@ -271,11 +276,12 @@ func (dbc *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error
 // OpenNew returns a new connection object.
 func (dbc *DbConnection) OpenNew() (*sql.DB, error) {
 
-	if len(dbc.Database) == 0 {
-		return nil, exception.New("`DB_NAME` unset, cannot continue.")
+	connStr, err := dbc.CreatePostgresConnectionString()
+	if err != nil {
+		return nil, err
 	}
 
-	dbConn, err := sql.Open("postgres", dbc.CreatePostgresConnectionString())
+	dbConn, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, exception.Wrap(err)
 	}
