@@ -2,6 +2,7 @@ package spiffy
 
 import (
 	"database/sql"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -266,4 +267,24 @@ func TestDbConnectionQueryListeners(t *testing.T) {
 	err = DefaultDb().QueryInTx("select 'ok!'", tx).Scan(&result)
 	a.Nil(err)
 	a.Equal("ok!", result)
+}
+
+func TestDbConnectionCreate(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	err = createTable(tx)
+	assert.Nil(err)
+
+	obj := &benchObj{
+		Name:      fmt.Sprintf("test_object_0"),
+		Timestamp: time.Now().UTC(),
+		Amount:    1000.0 + (5.0 * float32(0)),
+		Pending:   true,
+		Category:  fmt.Sprintf("category_%d", 0),
+	}
+	err = DefaultDb().CreateInTx(obj, tx)
+	assert.Nil(err)
 }
