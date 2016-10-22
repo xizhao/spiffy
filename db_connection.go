@@ -534,12 +534,15 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 		}
 	}()
 
-	v, _ := MakeNew(t)
+	v, err := MakeNewDatabaseMapped(t)
+	if err != nil {
+		return
+	}
 	isPopulatable := IsPopulatable(v)
 
 	var popErr error
 	for rows.Next() {
-		newObj, _ := MakeNew(t)
+		newObj, _ := MakeNewDatabaseMapped(t)
 
 		if isPopulatable {
 			popErr = AsPopulatable(newObj).Populate(rows)
