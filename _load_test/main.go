@@ -118,9 +118,8 @@ func spiffyAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, error)
 	return results, err
 }
 
-func benchHarness(parallelism int, queryLimit int, accessFunc func(*spiffy.DbConnection, int) ([]testObject, error)) ([]time.Duration, error) {
+func benchHarness(db *spiffy.DbConnection, parallelism int, queryLimit int, accessFunc func(*spiffy.DbConnection, int) ([]testObject, error)) ([]time.Duration, error) {
 	var durations []time.Duration
-	var durationsLock sync.Mutex
 	var waitHandle = sync.WaitGroup{}
 	var errors = make(chan error, parallelism)
 
@@ -131,15 +130,13 @@ func benchHarness(parallelism int, queryLimit int, accessFunc func(*spiffy.DbCon
 
 			for iteration := 0; iteration < iterationCount; iteration++ {
 				start := time.Now()
-				items, err := accessFunc(spiffy.DefaultDb(), queryLimit)
+				items, err := accessFunc(db, queryLimit)
 				if err != nil {
 					errors <- err
 					return
 				}
 
-				durationsLock.Lock()
 				durations = append(durations, time.Since(start))
-				durationsLock.Unlock()
 
 				if len(items) < queryLimit {
 					errors <- fmt.Errorf("Returned item count less than %d", queryLimit)
@@ -188,25 +185,59 @@ func main() {
 	}
 
 	// do spiffy query
+	uncached := spiffy.NewDbConnectionFromEnvironment()
+	uncached.DontUseStatementCache()
+	_, err = uncached.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	spiffyStart := time.Now()
-	spiffyTimings, err := benchHarness(threadCount, selectCount, spiffyAccess)
+	spiffyTimings, err := benchHarness(uncached, threadCount, selectCount, spiffyAccess)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Spiffy Elapsed: %v\n", time.Since(spiffyStart))
 
+	// do spiffy query
+	cached := spiffy.NewDbConnectionFromEnvironment()
+	cached.UseStatementCache()
+	_, err = cached.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	spiffyCachedStart := time.Now()
+	spiffyCachedTimings, err := benchHarness(cached, threadCount, selectCount, spiffyAccess)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Spiffy (Statement Cache) Elapsed: %v\n", time.Since(spiffyCachedStart))
+
 	// do baseline query
 	baselineStart := time.Now()
-	baselineTimings, err := benchHarness(threadCount, selectCount, baselineAccess)
+	baseline := spiffy.NewDbConnectionFromEnvironment()
+	_, err = baseline.Open()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	baselineTimings, err := benchHarness(baseline, threadCount, selectCount, baselineAccess)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Baseline Elapsed: %v\n", time.Since(baselineStart))
 
-	fmt.Println("Timings:")
-	fmt.Printf("\tAvg Baseline  : %v\n", util.Math.MeanOfDuration(baselineTimings))
-	fmt.Printf("\tAvg Spiffy    : %v\n", util.Math.MeanOfDuration(spiffyTimings))
+	println()
 
-	fmt.Printf("\t99th Baseline : %v\n", util.Math.PercentileOfDuration(baselineTimings, 99.0))
-	fmt.Printf("\t99th Spiffy   : %v\n", util.Math.PercentileOfDuration(spiffyTimings, 99.0))
+	fmt.Println("Timings Aggregates:")
+	fmt.Printf("\tAvg Baseline                 : %v\n", util.Math.MeanOfDuration(baselineTimings))
+	fmt.Printf("\tAvg Spiffy                   : %v\n", util.Math.MeanOfDuration(spiffyTimings))
+	fmt.Printf("\tAvg Spiffy (Statement Cache) : %v\n", util.Math.MeanOfDuration(spiffyCachedTimings))
+
+	println()
+
+	fmt.Printf("\t99th Baseline                 : %v\n", util.Math.PercentileOfDuration(baselineTimings, 99.0))
+	fmt.Printf("\t99th Spiffy                   : %v\n", util.Math.PercentileOfDuration(spiffyTimings, 99.0))
+	fmt.Printf("\t99th Spiffy (Statement Cache) : %v\n", util.Math.PercentileOfDuration(spiffyCachedTimings, 99.0))
 }
