@@ -184,6 +184,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	fmt.Println("Finished seeding objects, starting load test.")
+
 	// do spiffy query
 	uncached := spiffy.NewDbConnectionFromEnvironment()
 	uncached.DontUseStatementCache()

@@ -32,7 +32,7 @@ const (
 // NewDbConnection returns a new DbConnectin.
 func NewDbConnection() *DbConnection {
 	return &DbConnection{
-		useStatementCache:      true,
+		useStatementCache:      false, //doesnt actually help perf, maybe someday.
 		statementCacheInitLock: &sync.Mutex{},
 		connectionLock:         &sync.Mutex{},
 		txLock:                 &sync.RWMutex{},
