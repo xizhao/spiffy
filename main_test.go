@@ -3,6 +3,7 @@ package spiffy
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -16,10 +17,10 @@ import (
 
 // TestMain is the testing entrypoint.
 func TestMain(m *testing.M) {
-	config := NewDbConnectionFromEnvironment()
-	CreateDbAlias("main", config)
-	SetDefaultAlias("main")
-
+	err := SetDefaultDb(NewDbConnectionFromEnvironment())
+	if err != nil {
+		log.Fatal(err)
+	}
 	os.Exit(m.Run())
 }
 

@@ -116,7 +116,7 @@ func TestMultipleQueriesPerTransaction(t *testing.T) {
 	wg.Add(3)
 
 	a.NotNil(DefaultDb().Connection)
-	a.NotNil(DefaultDb().Tx)
+	a.NotNil(DefaultDb().tx)
 
 	err = seedObjects(10, tx)
 	a.Nil(err)

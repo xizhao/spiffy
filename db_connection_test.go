@@ -12,7 +12,7 @@ import (
 
 func TestNewAunauthenticatedDbConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewDbConnection("test_host", "test_database")
+	conn := NewDbConnectionWithHost("test_host", "test_database")
 	a.Equal("test_host", conn.Host)
 	a.Equal("test_database", conn.Database)
 	str, err := conn.CreatePostgresConnectionString()
@@ -176,7 +176,7 @@ func TestIsolateToTransaction(t *testing.T) {
 
 	DefaultDb().IsolateToTransaction(tx)
 	defer DefaultDb().ReleaseIsolation()
-	a.NotNil(DefaultDb().Tx)
+	a.NotNil(DefaultDb().tx)
 	a.True(DefaultDb().IsIsolatedToTransaction())
 }
 
@@ -190,11 +190,11 @@ func TestReleaseIsolation(t *testing.T) {
 	DefaultDb().IsolateToTransaction(tx)
 	defer DefaultDb().ReleaseIsolation() //this has to happen regardless (panics etc.)
 
-	a.NotNil(DefaultDb().Tx)
+	a.NotNil(DefaultDb().tx)
 	a.True(DefaultDb().IsIsolatedToTransaction())
 
 	DefaultDb().ReleaseIsolation()
-	a.Nil(DefaultDb().Tx)
+	a.Nil(DefaultDb().tx)
 	a.False(DefaultDb().IsIsolatedToTransaction())
 }
 
@@ -287,4 +287,51 @@ func TestDbConnectionCreate(t *testing.T) {
 	}
 	err = DefaultDb().CreateInTx(obj, tx)
 	assert.Nil(err)
+}
+
+func TestDbConnectionStatementCacheExecute(t *testing.T) {
+	a := assert.New(t)
+
+	conn := NewDbConnectionFromEnvironment()
+	defer func() {
+		closeErr := conn.Close()
+		a.Nil(closeErr)
+	}()
+
+	conn.UseStatementCache()
+	_, err := conn.Open()
+	a.Nil(err)
+
+	err = conn.Exec("select 'ok!'")
+	a.Nil(err)
+
+	err = conn.Exec("select 'ok!'")
+	a.Nil(err)
+
+	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
+}
+
+func TestDbConnectionStatementCacheQuery(t *testing.T) {
+	a := assert.New(t)
+
+	conn := NewDbConnectionFromEnvironment()
+	defer func() {
+		closeErr := conn.Close()
+		a.Nil(closeErr)
+	}()
+
+	conn.UseStatementCache()
+	_, err := conn.Open()
+	a.Nil(err)
+
+	var ok string
+	err = conn.Query("select 'ok!'").Scan(&ok)
+	a.Nil(err)
+	a.Equal("ok!", ok)
+
+	err = conn.Query("select 'ok!'").Scan(&ok)
+	a.Nil(err)
+	a.Equal("ok!", ok)
+
+	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
 }

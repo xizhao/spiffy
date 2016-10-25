@@ -29,50 +29,52 @@ const (
 // DbConnection
 // --------------------------------------------------------------------------------
 
-// NewDbConnection creates a new DbConnection using current user peer authentication.
-func NewDbConnection(host, dbName string) *DbConnection {
+// NewDbConnection returns a new DbConnectin.
+func NewDbConnection() *DbConnection {
 	return &DbConnection{
-		Host:     host,
-		Database: dbName,
-		SSLMode:  "disable",
-		MetaLock: &sync.Mutex{},
-		TxLock:   &sync.RWMutex{},
+		useStatementCache:      true,
+		statementCacheInitLock: &sync.Mutex{},
+		connectionLock:         &sync.Mutex{},
+		txLock:                 &sync.RWMutex{},
 	}
+}
+
+// NewDbConnectionWithHost creates a new DbConnection using current user peer authentication.
+func NewDbConnectionWithHost(host, dbName string) *DbConnection {
+	dbc := NewDbConnection()
+	dbc.Host = host
+	dbc.Database = dbName
+	dbc.SSLMode = "disable"
+	return dbc
 }
 
 // NewDbConnectionWithPassword creates a new connection with SSLMode set to "disable"
 func NewDbConnectionWithPassword(host, dbName, username, password string) *DbConnection {
-	return &DbConnection{
-		Host:     host,
-		Database: dbName,
-		Username: username,
-		Password: password,
-		SSLMode:  "disable",
-		MetaLock: &sync.Mutex{},
-		TxLock:   &sync.RWMutex{},
-	}
+	dbc := NewDbConnection()
+	dbc.Host = host
+	dbc.Database = dbName
+	dbc.Username = username
+	dbc.Password = password
+	dbc.SSLMode = "disable"
+	return dbc
 }
 
 // NewDbConnectionWithSSLMode creates a new connection with all available options (including SSLMode)
 func NewDbConnectionWithSSLMode(host, dbName, username, password, sslMode string) *DbConnection {
-	return &DbConnection{
-		Host:     host,
-		Database: dbName,
-		Username: username,
-		Password: password,
-		SSLMode:  sslMode,
-		MetaLock: &sync.Mutex{},
-		TxLock:   &sync.RWMutex{},
-	}
+	dbc := NewDbConnection()
+	dbc.Host = host
+	dbc.Database = dbName
+	dbc.Username = username
+	dbc.Password = password
+	dbc.SSLMode = sslMode
+	return dbc
 }
 
 // NewDbConnectionFromDSN creates a new connection with SSLMode set to "disable"
 func NewDbConnectionFromDSN(dsn string) *DbConnection {
-	return &DbConnection{
-		DSN:      dsn,
-		MetaLock: &sync.Mutex{},
-		TxLock:   &sync.RWMutex{},
-	}
+	dbc := NewDbConnection()
+	dbc.DSN = dsn
+	return dbc
 }
 
 func envVarWithDefault(varName, defaultValue string) string {
@@ -96,24 +98,17 @@ func envVarWithDefault(varName, defaultValue string) string {
 //	-	DB_SSLMODE 		= SSLMode
 func NewDbConnectionFromEnvironment() *DbConnection {
 	if len(os.Getenv("DATABASE_URL")) > 0 {
-		return &DbConnection{
-			DSN:      os.Getenv("DATABASE_URL"),
-			MetaLock: &sync.Mutex{},
-			TxLock:   &sync.RWMutex{},
-		}
+		return NewDbConnectionFromDSN(os.Getenv("DATABASE_URL"))
 	}
 
-	return &DbConnection{
-		Host:     envVarWithDefault("DB_HOST", "localhost"),
-		Port:     os.Getenv("DB_PORT"),
-		Database: os.Getenv("DB_NAME"),
-		Schema:   os.Getenv("DB_SCHEMA"),
-		Username: os.Getenv("DB_USER"),
-		Password: os.Getenv("DB_PASSWORD"),
-		SSLMode:  envVarWithDefault("DB_SSLMODE", "disable"),
-		MetaLock: &sync.Mutex{},
-		TxLock:   &sync.RWMutex{},
-	}
+	dbc := NewDbConnection()
+	dbc.Host = envVarWithDefault("DB_HOST", "localhost")
+	dbc.Database = os.Getenv("DB_NAME")
+	dbc.Schema = os.Getenv("DB_SCHEMA")
+	dbc.Username = os.Getenv("DB_USER")
+	dbc.Password = os.Getenv("DB_PASSWORD")
+	dbc.SSLMode = envVarWithDefault("DB_SSLMODE", "disable")
+	return dbc
 }
 
 // DbConnection is the basic wrapper for connection parameters and saves a reference to the created sql.Connection.
@@ -137,13 +132,30 @@ type DbConnection struct {
 	SSLMode string
 
 	Connection *sql.DB
-	MetaLock   *sync.Mutex
 
-	Tx     *sql.Tx
-	TxLock *sync.RWMutex
+	tx *sql.Tx
+
+	connectionLock         *sync.Mutex
+	txLock                 *sync.RWMutex
+	statementCacheInitLock *sync.Mutex
+
+	useStatementCache bool
+	statementCache    *StatementCache
 
 	executeListeners []DbEventListener
 	queryListeners   []DbEventListener
+}
+
+// Close implements a closer.
+func (dbc *DbConnection) Close() error {
+	var err error
+	if dbc.statementCache != nil {
+		err = dbc.statementCache.Close()
+	}
+	if err != nil {
+		return err
+	}
+	return dbc.Connection.Close()
 }
 
 // AddExecuteListener adds and execute listener.
@@ -166,6 +178,21 @@ func (dbc *DbConnection) FireEvent(listeners []DbEventListener, query string, el
 		listener := listeners[x]
 		go listener(&DbEvent{DbConnection: dbc, Query: query, Elapsed: elapsed, Error: err})
 	}
+}
+
+// UseStatementCache opts to cache statements for the connection.
+func (dbc *DbConnection) UseStatementCache() {
+	dbc.useStatementCache = true
+}
+
+// DontUseStatementCache opts to not use the statement cache.
+func (dbc *DbConnection) DontUseStatementCache() {
+	dbc.useStatementCache = false
+}
+
+// StatementCache returns the statement cache.
+func (dbc *DbConnection) StatementCache() *StatementCache {
+	return dbc.statementCache
 }
 
 // CreatePostgresConnectionString returns a sql connection string from a given set of DbConnection parameters.
@@ -204,7 +231,7 @@ func (dbc *DbConnection) Begin() (*sql.Tx, error) {
 	}
 
 	if dbc.IsIsolatedToTransaction() {
-		return dbc.Tx, nil
+		return dbc.tx, nil
 	}
 
 	if dbc.Connection != nil {
@@ -245,30 +272,41 @@ func (dbc *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error
 	}
 
 	if tx != nil {
-		stmt, stmtErr := tx.Prepare(statement)
-		if stmtErr != nil {
-			return nil, exception.Newf("Postgres Error: %v", stmtErr)
+		stmt, err := tx.Prepare(statement)
+		if err != nil {
+			return nil, exception.Newf("Postgres Error: %v", err)
 		}
 		return stmt, nil
 	}
 
-	if dbc.Tx != nil {
-		stmt, stmtErr := dbc.Tx.Prepare(statement)
-		if stmtErr != nil {
-			return nil, exception.Newf("Postgres Error: %v", stmtErr)
+	if dbc.tx != nil {
+		stmt, err := dbc.tx.Prepare(statement)
+		if err != nil {
+			return nil, exception.Newf("Postgres Error: %v", err)
 		}
 		return stmt, nil
 	}
 
 	// open shared connection
-	dbConn, dbErr := dbc.Open()
-	if dbErr != nil {
-		return nil, exception.Newf("Postgres Error: %v", dbErr)
+	dbConn, err := dbc.Open()
+	if err != nil {
+		return nil, exception.Newf("Postgres Error: %v", err)
 	}
 
-	stmt, stmtErr := dbConn.Prepare(statement)
-	if stmtErr != nil {
-		return nil, exception.Newf("Postgres Error: %v", stmtErr)
+	if dbc.useStatementCache {
+		if dbc.statementCache == nil {
+			dbc.statementCacheInitLock.Lock()
+			defer dbc.statementCacheInitLock.Unlock()
+			if dbc.statementCache == nil {
+				dbc.statementCache = NewStatementCache(dbConn)
+			}
+		}
+		return dbc.statementCache.Prepare(statement)
+	}
+
+	stmt, err := dbConn.Prepare(statement)
+	if err != nil {
+		return nil, exception.Newf("Postgres Error: %v", err)
 	}
 	return stmt, nil
 }
@@ -299,8 +337,8 @@ func (dbc *DbConnection) OpenNew() (*sql.DB, error) {
 // Open returns a connection object, either a cached connection object or creating a new one in the process.
 func (dbc *DbConnection) Open() (*sql.DB, error) {
 	if dbc.Connection == nil {
-		dbc.MetaLock.Lock()
-		defer dbc.MetaLock.Unlock()
+		dbc.connectionLock.Lock()
+		defer dbc.connectionLock.Unlock()
 
 		if dbc.Connection == nil {
 			newConn, err := dbc.OpenNew()
@@ -333,8 +371,8 @@ func (dbc *DbConnection) ExecInTx(statement string, tx *sql.Tx, args ...interfac
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	stmt, stmtErr := dbc.Prepare(statement, tx)
 	if stmtErr != nil {
@@ -342,9 +380,11 @@ func (dbc *DbConnection) ExecInTx(statement string, tx *sql.Tx, args ...interfac
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			closeErr := stmt.Close()
+			if closeErr != nil {
+				err = exception.WrapMany(err, closeErr)
+			}
 		}
 	}()
 
@@ -368,7 +408,7 @@ func (dbc *DbConnection) QueryInTx(statement string, tx *sql.Tx, args ...interfa
 		result.err = exception.New(DBAliasNilError)
 		return
 	}
-	dbc.txLock()
+	dbc.transactionLock()
 
 	stmt, stmtErr := dbc.Prepare(statement, tx)
 	if stmtErr != nil {
@@ -377,9 +417,13 @@ func (dbc *DbConnection) QueryInTx(statement string, tx *sql.Tx, args ...interfa
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			closeErr := stmt.Close()
-			result.err = exception.WrapMany(result.err, exception.New(r), closeErr)
-			dbc.txUnlock()
+			if !dbc.useStatementCache {
+				result.err = exception.WrapMany(result.err, exception.New(r), stmt.Close())
+			} else {
+				result.err = exception.WrapMany(result.err, exception.New(r))
+			}
+
+			dbc.transactionUnlock()
 		}
 	}()
 
@@ -416,8 +460,8 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	if ids == nil {
 		return exception.New("invalid `ids` parameter.")
@@ -442,9 +486,8 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
@@ -499,8 +542,8 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
@@ -516,9 +559,8 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
@@ -582,8 +624,8 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	cols := CachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
@@ -619,9 +661,8 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
@@ -671,8 +712,8 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	tableName := object.TableName()
 	cols := CachedColumnCollectionFromInstance(object)
@@ -699,9 +740,8 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
@@ -735,8 +775,8 @@ func (dbc *DbConnection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists b
 		return false, exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	tableName := object.TableName()
 	cols := CachedColumnCollectionFromInstance(object)
@@ -756,9 +796,8 @@ func (dbc *DbConnection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists b
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
@@ -802,8 +841,8 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.txLock()
-	defer dbc.txUnlock()
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
 
 	tableName := object.TableName()
 	cols := CachedColumnCollectionFromInstance(object)
@@ -823,9 +862,8 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
@@ -845,9 +883,9 @@ func (dbc *DbConnection) IsolateToTransaction(tx *sql.Tx) {
 		return
 	}
 
-	dbc.TxLock.Lock()
-	defer dbc.TxLock.Unlock()
-	dbc.Tx = tx
+	dbc.txLock.Lock()
+	defer dbc.txLock.Unlock()
+	dbc.tx = tx
 }
 
 // ReleaseIsolation reverses `IsolateToTransaction`
@@ -856,9 +894,9 @@ func (dbc *DbConnection) ReleaseIsolation() {
 		return
 	}
 
-	dbc.TxLock.Lock()
-	defer dbc.TxLock.Unlock()
-	dbc.Tx = nil
+	dbc.txLock.Lock()
+	defer dbc.txLock.Unlock()
+	dbc.tx = nil
 }
 
 // IsIsolatedToTransaction returns if the connection is isolated to a transaction.
@@ -867,10 +905,10 @@ func (dbc *DbConnection) IsIsolatedToTransaction() bool {
 		return false
 	}
 
-	dbc.TxLock.RLock()
-	defer dbc.TxLock.RUnlock()
+	dbc.txLock.RLock()
+	defer dbc.txLock.RUnlock()
 
-	return dbc.Tx != nil
+	return dbc.tx != nil
 }
 
 // Commit commits a transaction if the connection is not currently isolated to one already.
@@ -897,22 +935,22 @@ func (dbc *DbConnection) Rollback(tx *sql.Tx) error {
 	return tx.Rollback()
 }
 
-func (dbc *DbConnection) txLock() {
+func (dbc *DbConnection) transactionLock() {
 	if dbc == nil {
 		return
 	}
 
-	if dbc.Tx != nil {
-		dbc.TxLock.Lock()
+	if dbc.tx != nil {
+		dbc.txLock.Lock()
 	}
 }
 
-func (dbc *DbConnection) txUnlock() {
+func (dbc *DbConnection) transactionUnlock() {
 	if dbc == nil {
 		return
 	}
 
-	if dbc.Tx != nil {
-		dbc.TxLock.Unlock()
+	if dbc.tx != nil {
+		dbc.txLock.Unlock()
 	}
 }

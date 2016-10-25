@@ -31,14 +31,17 @@ func (q *QueryResult) Close() error {
 		rowsErr = q.rows.Close()
 		q.rows = nil
 	}
-	if q.stmt != nil {
-		stmtErr = q.stmt.Close()
-		q.stmt = nil
+
+	if !q.conn.useStatementCache {
+		if q.stmt != nil {
+			stmtErr = q.stmt.Close()
+			q.stmt = nil
+		}
 	}
 
 	//yes this is gross.
 	//release the tx lock on the connection for this query.
-	q.conn.txUnlock()
+	q.conn.transactionUnlock()
 	return exception.WrapMany(rowsErr, stmtErr)
 }
 
