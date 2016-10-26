@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/blendlabs/go-exception"
+	logger "github.com/blendlabs/go-logger"
 
 	// PQ is the postgres driver
 	_ "github.com/lib/pq"
@@ -139,11 +140,10 @@ type DbConnection struct {
 	txLock                 *sync.RWMutex
 	statementCacheInitLock *sync.Mutex
 
+	diagnostics *logger.DiagnosticsAgent
+
 	useStatementCache bool
 	statementCache    *StatementCache
-
-	executeListeners []DbEventListener
-	queryListeners   []DbEventListener
 }
 
 // Close implements a closer.
@@ -158,25 +158,19 @@ func (dbc *DbConnection) Close() error {
 	return dbc.Connection.Close()
 }
 
-// AddExecuteListener adds and execute listener.
-// Events fire on statement completion.
-func (dbc *DbConnection) AddExecuteListener(listener DbEventListener) {
-	dbc.executeListeners = append(dbc.executeListeners, listener)
+// SetDiagnostics sets the connection's diagnostic agent.
+func (dbc *DbConnection) SetDiagnostics(agent *logger.DiagnosticsAgent) {
+	dbc.diagnostics = agent
 }
 
-// AddQueryListener adds and execute listener.
-// Events fire on statement completion.
-func (dbc *DbConnection) AddQueryListener(listener DbEventListener) {
-	dbc.queryListeners = append(dbc.queryListeners, listener)
+// Diagnostics returns the diagnostics agent.
+func (dbc *DbConnection) Diagnostics() *logger.DiagnosticsAgent {
+	return dbc.diagnostics
 }
 
-// FireEvent fires an event for a given set of listeners.
-// It is generally used internally by the DbConnection and shouldn't be called directly.
-// It is exported so it can be shared with QueryResult.
-func (dbc *DbConnection) FireEvent(listeners []DbEventListener, query string, elapsed time.Duration, err error) {
-	for x := 0; x < len(listeners); x++ {
-		listener := listeners[x]
-		go listener(&DbEvent{DbConnection: dbc, Query: query, Elapsed: elapsed, Error: err})
+func (dbc *DbConnection) fireEvent(flag logger.EventFlag, query string, elapsed time.Duration, err error) {
+	if dbc.diagnostics != nil {
+		dbc.diagnostics.OnEvent(flag, query, elapsed, err)
 	}
 }
 
@@ -364,7 +358,7 @@ func (dbc *DbConnection) ExecInTx(statement string, tx *sql.Tx, args ...interfac
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.executeListeners, statement, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagExecute, statement, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {
@@ -453,7 +447,7 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.queryListeners, queryBody, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {
@@ -535,7 +529,7 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.queryListeners, queryBody, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagQuery, queryBody, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {
@@ -617,7 +611,7 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.executeListeners, queryBody, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {
@@ -705,7 +699,7 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.executeListeners, queryBody, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {
@@ -768,7 +762,7 @@ func (dbc *DbConnection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists b
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.queryListeners, queryBody, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagQuery, queryBody, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {
@@ -834,7 +828,7 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 			recoveryException := exception.New(r)
 			err = exception.WrapMany(err, recoveryException)
 		}
-		dbc.FireEvent(dbc.executeListeners, queryBody, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
 	if dbc == nil {

@@ -56,7 +56,7 @@ func (q *QueryResult) Any() (hasRows bool, err error) {
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
-		q.conn.FireEvent(q.conn.queryListeners, q.queryBody, time.Now().Sub(q.start), err)
+		q.conn.fireEvent(EventFlagQuery, q.queryBody, time.Now().Sub(q.start), err)
 	}()
 
 	if q.err != nil {
@@ -117,7 +117,7 @@ func (q *QueryResult) Scan(args ...interface{}) (err error) {
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
-		q.conn.FireEvent(q.conn.queryListeners, q.queryBody, time.Now().Sub(q.start), err)
+		q.conn.fireEvent(EventFlagQuery, q.queryBody, time.Now().Sub(q.start), err)
 	}()
 
 	if q.err != nil {
@@ -152,7 +152,7 @@ func (q *QueryResult) Out(object interface{}) (err error) {
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
-		q.conn.FireEvent(q.conn.queryListeners, q.queryBody, time.Now().Sub(q.start), err)
+		q.conn.fireEvent(EventFlagQuery, q.queryBody, time.Now().Sub(q.start), err)
 	}()
 
 	if q.err != nil {
@@ -194,7 +194,7 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
-		q.conn.FireEvent(q.conn.queryListeners, q.queryBody, time.Now().Sub(q.start), err)
+		q.conn.fireEvent(EventFlagQuery, q.queryBody, time.Now().Sub(q.start), err)
 	}()
 
 	if q.err != nil {
@@ -259,7 +259,7 @@ func (q *QueryResult) Each(consumer RowsConsumer) (err error) {
 		if closeErr := q.Close(); closeErr != nil {
 			err = exception.WrapMany(err, closeErr)
 		}
-		q.conn.FireEvent(q.conn.queryListeners, q.queryBody, time.Now().Sub(q.start), err)
+		q.conn.fireEvent(EventFlagQuery, q.queryBody, time.Now().Sub(q.start), err)
 	}()
 
 	if q.err != nil {
