@@ -174,13 +174,13 @@ func (dbc *DbConnection) fireEvent(flag logger.EventFlag, query string, elapsed 
 	}
 }
 
-// UseStatementCache opts to cache statements for the connection.
-func (dbc *DbConnection) UseStatementCache() {
+// EnableStatementCache opts to cache statements for the connection.
+func (dbc *DbConnection) EnableStatementCache() {
 	dbc.useStatementCache = true
 }
 
-// DontUseStatementCache opts to not use the statement cache.
-func (dbc *DbConnection) DontUseStatementCache() {
+// DisableStatementCache opts to not use the statement cache.
+func (dbc *DbConnection) DisableStatementCache() {
 	dbc.useStatementCache = false
 }
 
