@@ -241,7 +241,7 @@ func TestDbConnectionStatementCacheExecute(t *testing.T) {
 		a.Nil(closeErr)
 	}()
 
-	conn.UseStatementCache()
+	conn.EnableStatementCache()
 	_, err := conn.Open()
 	a.Nil(err)
 
@@ -263,7 +263,7 @@ func TestDbConnectionStatementCacheQuery(t *testing.T) {
 		a.Nil(closeErr)
 	}()
 
-	conn.UseStatementCache()
+	conn.EnableStatementCache()
 	_, err := conn.Open()
 	a.Nil(err)
 
