@@ -188,7 +188,7 @@ func main() {
 
 	// do spiffy query
 	uncached := spiffy.NewDbConnectionFromEnvironment()
-	uncached.DontUseStatementCache()
+	uncached.DisableStatementCache()
 	_, err = uncached.Open()
 	if err != nil {
 		log.Fatal(err)
@@ -203,7 +203,7 @@ func main() {
 
 	// do spiffy query
 	cached := spiffy.NewDbConnectionFromEnvironment()
-	cached.UseStatementCache()
+	cached.EnableStatementCache()
 	_, err = cached.Open()
 	if err != nil {
 		log.Fatal(err)
