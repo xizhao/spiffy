@@ -736,7 +736,7 @@ func (dbc *DbConnection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err er
 	}
 
 	queryBody = fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES %s",
+		"INSERT INTO %s (%s) VALUES %s ON CONFLICT DO NOTHING",
 		tableName,
 		strings.Join(colNames, ","),
 		strings.Join(tokenSets, ","),
