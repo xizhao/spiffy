@@ -18,6 +18,17 @@ func TestMakeCsvTokens(t *testing.T) {
 	a.Equal("$1,$2,$3", three)
 }
 
+func TestReflectSliceType(t *testing.T) {
+	assert := assert.New(t)
+
+	objects := []benchObj{
+		{}, {}, {},
+	}
+
+	ot := reflectSliceType(objects)
+	assert.Equal("benchObj", ot.Name())
+}
+
 func TestMakeSliceOfType(t *testing.T) {
 	a := assert.New(t)
 	tx, txErr := DefaultDb().Begin()

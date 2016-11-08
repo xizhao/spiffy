@@ -348,7 +348,7 @@ func TestDbConnectionCreateMany(t *testing.T) {
 	err = createTable(tx)
 	assert.Nil(err)
 
-	var objects []benchObj
+	var objects []DatabaseMapped
 	for x := 0; x < 10; x++ {
 		objects = append(objects, benchObj{
 			Name:      fmt.Sprintf("test_object_%d", x),

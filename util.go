@@ -55,12 +55,23 @@ func reflectType(obj interface{}) reflect.Type {
 
 // reflectSliceType returns the inner type of a slice following pointers.
 func reflectSliceType(collection interface{}) reflect.Type {
-	t := reflect.TypeOf(collection)
-	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface || t.Kind() == reflect.Slice {
-		t = t.Elem()
+	v := reflect.ValueOf(collection)
+	for v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	if v.Len() == 0 {
+		t := v.Type()
+		for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice {
+			t = t.Elem()
+		}
+		return t
+	}
+	v = v.Index(0)
+	for v.Kind() == reflect.Interface || v.Kind() == reflect.Ptr {
+		v = v.Elem()
 	}
 
-	return t
+	return v.Type()
 }
 
 // makeWhereClause returns the sql `where` clause for a column collection, starting at a given index (used in sql $1 parameterization).
