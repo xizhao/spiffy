@@ -685,6 +685,88 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	return nil
 }
 
+// CreateMany writes many an objects to the database.
+func (dbc *DbConnection) CreateMany(objects interface{}) error {
+	return dbc.CreateManyInTx(objects, nil)
+}
+
+// CreateManyInTx writes many an objects to the database within a transaction.
+func (dbc *DbConnection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err error) {
+	var queryBody string
+	start := time.Now()
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
+	}()
+
+	if dbc == nil {
+		return exception.New(DBAliasNilError)
+	}
+
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
+
+	sliceValue := reflectValue(objects)
+	sliceType := reflectSliceType(objects)
+	tableName, err := TableName(sliceType)
+	if err != nil {
+		return
+	}
+
+	cols := CachedColumnCollectionFromType(tableName, sliceType)
+	writeCols := cols.NotReadOnly().NotSerials()
+
+	//NOTE: we're only using one.
+	//serials := cols.Serials()
+	colNames := writeCols.ColumnNames()
+
+	tokenSets := make([]string, sliceValue.Len())
+	tokens := make([]string, writeCols.Len())
+
+	metaIndex := 0
+	for x := 0; x < sliceValue.Len(); x++ {
+		for y := 0; y < writeCols.Len(); y++ {
+			tokens[y] = fmt.Sprintf("$%d", metaIndex+1)
+			metaIndex = metaIndex + 1
+		}
+		tokenSets[x] = fmt.Sprintf("(%s)", strings.Join(tokens, ","))
+	}
+
+	queryBody = fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		tableName,
+		strings.Join(colNames, ","),
+		strings.Join(tokenSets, ","),
+	)
+
+	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	if stmtErr != nil {
+		err = exception.Wrap(stmtErr)
+		return
+	}
+	defer func() {
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
+		}
+	}()
+
+	var colValues []interface{}
+	for row := 0; row < sliceValue.Len(); row++ {
+		colValues = append(colValues, writeCols.ColumnValues(sliceValue.Index(row).Interface())...)
+	}
+
+	_, execErr := stmt.Exec(colValues...)
+	if execErr != nil {
+		err = exception.Wrap(execErr)
+		return
+	}
+
+	return nil
+}
+
 // Update updates an object.
 func (dbc *DbConnection) Update(object DatabaseMapped) error {
 	return dbc.UpdateInTx(object, nil)

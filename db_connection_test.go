@@ -338,3 +338,32 @@ func TestDbConnectionStatementCacheQuery(t *testing.T) {
 
 	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
 }
+
+func TestDbConnectionCreateMany(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	err = createTable(tx)
+	assert.Nil(err)
+
+	var objects []benchObj
+	for x := 0; x < 10; x++ {
+		objects = append(objects, benchObj{
+			Name:      fmt.Sprintf("test_object_%d", x),
+			Timestamp: time.Now().UTC(),
+			Amount:    1005.0,
+			Pending:   true,
+			Category:  fmt.Sprintf("category_%d", x),
+		})
+	}
+
+	err = DefaultDb().CreateManyInTx(objects, tx)
+	assert.Nil(err)
+
+	var verify []benchObj
+	err = DefaultDb().QueryInTx(`select * from bench_object`, tx).OutMany(&verify)
+	assert.Nil(err)
+	assert.NotEmpty(verify)
+}
