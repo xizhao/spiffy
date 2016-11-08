@@ -710,6 +710,10 @@ func (dbc *DbConnection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err er
 	defer dbc.transactionUnlock()
 
 	sliceValue := reflectValue(objects)
+	if sliceValue.Len() == 0 {
+		return nil
+	}
+
 	sliceType := reflectSliceType(objects)
 	tableName, err := TableName(sliceType)
 	if err != nil {
