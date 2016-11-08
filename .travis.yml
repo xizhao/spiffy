@@ -16,8 +16,14 @@ notifications:
       - "%{author} : (<%{compare_url}|%{commit}>) %{commit_message}"
       - "Build Details: %{build_url}"
 
-services:
-  - postgresql
+addons:
+  apt:
+    sources:
+    - precise-pgdg-9.5
+    packages:
+    - postgresql-9.5
+    - postgresql-contrib-9.5
+  postgresql: 9.5
 
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres
