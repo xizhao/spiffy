@@ -71,6 +71,25 @@ func BenchmarkMain(b *testing.B) {
 }
 
 //------------------------------------------------------------------------------------------------
+// Util Types
+//------------------------------------------------------------------------------------------------
+
+type upsertObj struct {
+	UUID      string    `db:"uuid,pk"`
+	Timestamp time.Time `db:"timestamp_utc"`
+	Category  string    `db:"category"`
+}
+
+func (uo upsertObj) TableName() string {
+	return "upsert_object"
+}
+
+func createUpserObjectTable(tx *sql.Tx) error {
+	createSQL := `CREATE TABLE IF NOT EXISTS upsert_object (uuid varchar(255) primary key, timestamp_utc timestamp, category varchar(255));`
+	return DefaultDb().ExecInTx(createSQL, tx)
+}
+
+//------------------------------------------------------------------------------------------------
 // Benchmarking
 //------------------------------------------------------------------------------------------------
 
@@ -92,7 +111,7 @@ func (b benchObj) TableName() string {
 }
 
 func createTable(tx *sql.Tx) error {
-	createSQL := `CREATE TABLE IF NOT EXISTS bench_object (id serial not null, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
+	createSQL := `CREATE TABLE IF NOT EXISTS bench_object (id serial not null primary key, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
 	return DefaultDb().ExecInTx(createSQL, tx)
 }
 

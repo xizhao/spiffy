@@ -232,6 +232,66 @@ func TestDbConnectionCreate(t *testing.T) {
 	assert.Nil(err)
 }
 
+func TestDbConnectionUpsert(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	err = createUpserObjectTable(tx)
+	assert.Nil(err)
+
+	obj := &upsertObj{
+		UUID:      UUIDv4().ToShortString(),
+		Timestamp: time.Now().UTC(),
+		Category:  UUIDv4().ToShortString(),
+	}
+	err = DefaultDb().UpsertInTx(obj, tx)
+	assert.Nil(err)
+
+	obj.Category = "test"
+
+	err = DefaultDb().UpsertInTx(obj, tx)
+	assert.Nil(err)
+
+	var verify upsertObj
+	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	assert.Nil(err)
+	assert.Equal(obj.Category, verify.Category)
+}
+
+func TestDbConnectionUpsertWithSerial(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	err = createTable(tx)
+	assert.Nil(err)
+
+	obj := &benchObj{
+		Name:      "test_object_0",
+		Timestamp: time.Now().UTC(),
+		Amount:    1005.0,
+		Pending:   true,
+		Category:  "category_0",
+	}
+	err = DefaultDb().UpsertInTx(obj, tx)
+	assert.Nil(err)
+	assert.NotZero(obj.ID)
+
+	obj.Category = "test"
+
+	err = DefaultDb().UpsertInTx(obj, tx)
+	assert.Nil(err)
+	assert.NotZero(obj.ID)
+
+	var verify benchObj
+	err = DefaultDb().GetByIDInTx(&verify, tx, obj.ID)
+	assert.Nil(err)
+	assert.Equal(obj.Category, verify.Category)
+}
+
 func TestDbConnectionStatementCacheExecute(t *testing.T) {
 	a := assert.New(t)
 

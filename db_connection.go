@@ -870,6 +870,110 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	return
 }
 
+// Upsert inserts the object if it doesn't exist already (as defined by its primary keys) or updates it.
+func (dbc *DbConnection) Upsert(object DatabaseMapped) error {
+	return dbc.UpsertInTx(object, nil)
+}
+
+// UpsertInTx inserts the object if it doesn't exist already (as defined by its primary keys) or updates it wrapped in a transaction.
+func (dbc *DbConnection) UpsertInTx(object DatabaseMapped, tx *sql.Tx) (err error) {
+	var queryBody string
+	start := time.Now()
+	defer func() {
+		if r := recover(); r != nil {
+			recoveryException := exception.New(r)
+			err = exception.WrapMany(err, recoveryException)
+		}
+		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
+	}()
+
+	if dbc == nil {
+		err = exception.New(DBAliasNilError)
+		return
+	}
+
+	dbc.transactionLock()
+	defer dbc.transactionUnlock()
+
+	cols := CachedColumnCollectionFromInstance(object)
+	writeCols := cols.NotReadOnly().NotSerials()
+
+	conflictUpdateCols := cols.NotReadOnly().NotSerials().NotPrimaryKeys()
+
+	serials := cols.Serials()
+	pks := cols.PrimaryKeys()
+	tableName := object.TableName()
+	colNames := writeCols.ColumnNames()
+	colValues := writeCols.ColumnValues(object)
+	tokens := ParamTokensCSV(writeCols.Len())
+
+	queryBody = fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES (%s)\n",
+		tableName,
+		strings.Join(colNames, ","),
+		tokens,
+	)
+
+	if pks.Len() > 0 {
+		tokenMap := map[string]string{}
+
+		for i, col := range writeCols.Columns() {
+			tokenMap[col.ColumnName] = "$" + strconv.Itoa(i+1)
+		}
+		var updatePairs []string
+		for _, col := range conflictUpdateCols.Columns() {
+			updatePairs = append(updatePairs, col.ColumnName+" = "+tokenMap[col.ColumnName])
+		}
+
+		queryBody = queryBody + fmt.Sprintf(
+			"ON CONFLICT (%s) DO UPDATE SET %s\n",
+			strings.Join(pks.ColumnNames(), ","),
+			strings.Join(updatePairs, ","),
+		)
+	}
+
+	var serial = serials.FirstOrDefault()
+	if serials.Len() != 0 {
+		queryBody = queryBody + fmt.Sprintf(
+			"RETURNING %s",
+			serial.ColumnName,
+		)
+	}
+
+	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	if stmtErr != nil {
+		err = exception.Wrap(stmtErr)
+		return
+	}
+	defer func() {
+		if !dbc.useStatementCache {
+			err = exception.WrapMany(err, stmt.Close())
+		}
+	}()
+
+	if serials.Len() != 0 {
+		var id interface{}
+		execErr := stmt.QueryRow(colValues...).Scan(&id)
+		if execErr != nil {
+			err = exception.Wrap(execErr)
+			return
+		}
+		setErr := serial.SetValue(object, id)
+		if setErr != nil {
+			err = exception.Wrap(setErr)
+			return
+		}
+	} else {
+		_, execErr := stmt.Exec(colValues...)
+		if execErr != nil {
+			err = exception.Wrap(execErr)
+			return
+		}
+	}
+
+	return nil
+}
+
 // IsolateToTransaction causes all commands on the given connection to use a transaction.
 // NOTE: causes locking around the transaction.
 func (dbc *DbConnection) IsolateToTransaction(tx *sql.Tx) {
