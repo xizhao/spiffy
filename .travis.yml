@@ -16,6 +16,9 @@ notifications:
       - "%{author} : (<%{compare_url}|%{commit}>) %{commit_message}"
       - "Build Details: %{build_url}"
 
+services:
+  - postgresql
+
 addons:
   apt:
     sources:
