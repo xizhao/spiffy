@@ -14,14 +14,14 @@ import (
 )
 
 const (
-	createCount    = 1 << 12
+	createCount    = 1 << 9
 	selectCount    = 512
-	iterationCount = 64
+	iterationCount = 128
 	threadCount    = 128
 )
 
 const (
-	selectQuery = `SELECT * FROM test_object LIMIT $1`
+	selectQuery = `SELECT * FROM test_object`
 )
 
 func newTestObject() *testObject {
@@ -71,6 +71,10 @@ func createTable() error {
 	return m.Apply(spiffy.DefaultDb())
 }
 
+func dropTable() error {
+	return spiffy.DefaultDb().Exec("DROP TABLE IF EXISTS test_object")
+}
+
 func seedObjects(count int) error {
 	var err error
 	for x := 0; x < count; x++ {
@@ -91,7 +95,7 @@ func baselineAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, erro
 		return results, err
 	}
 
-	res, err := stmt.Query(queryLimit)
+	res, err := stmt.Query()
 	if err != nil {
 		return results, err
 	}
@@ -114,7 +118,7 @@ func baselineAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, erro
 
 func spiffyAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, error) {
 	var results []testObject
-	err := db.Query(selectQuery, queryLimit).OutMany(&results)
+	err := db.GetAll(&results)
 	return results, err
 }
 
@@ -157,6 +161,11 @@ func benchHarness(db *spiffy.DbConnection, parallelism int, queryLimit int, acce
 					errors <- fmt.Errorf("Returned items have empty `Variance`")
 					return
 				}
+
+				if items[0].UUID == items[len(items)>>1].UUID {
+					errors <- fmt.Errorf("UUIDs are equal between records")
+					return
+				}
 			}
 		}()
 	}
@@ -178,6 +187,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer dropTable()
 
 	err = seedObjects(createCount)
 	if err != nil {
