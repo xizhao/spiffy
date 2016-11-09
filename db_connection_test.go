@@ -249,12 +249,16 @@ func TestDbConnectionUpsert(t *testing.T) {
 	err = DefaultDb().UpsertInTx(obj, tx)
 	assert.Nil(err)
 
+	var verify upsertObj
+	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	assert.Nil(err)
+	assert.Equal(obj.Category, verify.Category)
+
 	obj.Category = "test"
 
 	err = DefaultDb().UpsertInTx(obj, tx)
 	assert.Nil(err)
 
-	var verify upsertObj
 	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
@@ -280,13 +284,17 @@ func TestDbConnectionUpsertWithSerial(t *testing.T) {
 	assert.Nil(err)
 	assert.NotZero(obj.ID)
 
+	var verify benchObj
+	err = DefaultDb().GetByIDInTx(&verify, tx, obj.ID)
+	assert.Nil(err)
+	assert.Equal(obj.Category, verify.Category)
+
 	obj.Category = "test"
 
 	err = DefaultDb().UpsertInTx(obj, tx)
 	assert.Nil(err)
 	assert.NotZero(obj.ID)
 
-	var verify benchObj
 	err = DefaultDb().GetByIDInTx(&verify, tx, obj.ID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
