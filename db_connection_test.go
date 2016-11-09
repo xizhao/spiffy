@@ -97,6 +97,53 @@ func TestQuery(t *testing.T) {
 	a.NotEqual(id, 0)
 }
 
+func TestDbConnectionStatementCacheExecute(t *testing.T) {
+	a := assert.New(t)
+
+	conn := NewDbConnectionFromEnvironment()
+	defer func() {
+		closeErr := conn.Close()
+		a.Nil(closeErr)
+	}()
+
+	conn.EnableStatementCache()
+	_, err := conn.Open()
+	a.Nil(err)
+
+	err = conn.Exec("select 'ok!'")
+	a.Nil(err)
+
+	err = conn.Exec("select 'ok!'")
+	a.Nil(err)
+
+	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
+}
+
+func TestDbConnectionStatementCacheQuery(t *testing.T) {
+	a := assert.New(t)
+
+	conn := NewDbConnectionFromEnvironment()
+	defer func() {
+		closeErr := conn.Close()
+		a.Nil(closeErr)
+	}()
+
+	conn.EnableStatementCache()
+	_, err := conn.Open()
+	a.Nil(err)
+
+	var ok string
+	err = conn.Query("select 'ok!'").Scan(&ok)
+	a.Nil(err)
+	a.Equal("ok!", ok)
+
+	err = conn.Query("select 'ok!'").Scan(&ok)
+	a.Nil(err)
+	a.Equal("ok!", ok)
+
+	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
+}
+
 func TestCRUDMethods(t *testing.T) {
 	a := assert.New(t)
 	tx, err := DefaultDb().Begin()
@@ -300,53 +347,6 @@ func TestDbConnectionUpsertWithSerial(t *testing.T) {
 	assert.Equal(obj.Category, verify.Category)
 }
 
-func TestDbConnectionStatementCacheExecute(t *testing.T) {
-	a := assert.New(t)
-
-	conn := NewDbConnectionFromEnvironment()
-	defer func() {
-		closeErr := conn.Close()
-		a.Nil(closeErr)
-	}()
-
-	conn.EnableStatementCache()
-	_, err := conn.Open()
-	a.Nil(err)
-
-	err = conn.Exec("select 'ok!'")
-	a.Nil(err)
-
-	err = conn.Exec("select 'ok!'")
-	a.Nil(err)
-
-	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
-}
-
-func TestDbConnectionStatementCacheQuery(t *testing.T) {
-	a := assert.New(t)
-
-	conn := NewDbConnectionFromEnvironment()
-	defer func() {
-		closeErr := conn.Close()
-		a.Nil(closeErr)
-	}()
-
-	conn.EnableStatementCache()
-	_, err := conn.Open()
-	a.Nil(err)
-
-	var ok string
-	err = conn.Query("select 'ok!'").Scan(&ok)
-	a.Nil(err)
-	a.Equal("ok!", ok)
-
-	err = conn.Query("select 'ok!'").Scan(&ok)
-	a.Nil(err)
-	a.Equal("ok!", ok)
-
-	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
-}
-
 func TestDbConnectionCreateMany(t *testing.T) {
 	assert := assert.New(t)
 	tx, err := DefaultDb().Begin()
@@ -374,4 +374,37 @@ func TestDbConnectionCreateMany(t *testing.T) {
 	err = DefaultDb().QueryInTx(`select * from bench_object`, tx).OutMany(&verify)
 	assert.Nil(err)
 	assert.NotEmpty(verify)
+}
+
+func TestDbConnectionCreateIfNotExists(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	err = createUpserObjectTable(tx)
+	assert.Nil(err)
+
+	obj := &upsertObj{
+		UUID:      UUIDv4().ToShortString(),
+		Timestamp: time.Now().UTC(),
+		Category:  UUIDv4().ToShortString(),
+	}
+	err = DefaultDb().CreateIfNotExistsInTx(obj, tx)
+	assert.Nil(err)
+
+	var verify upsertObj
+	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	assert.Nil(err)
+	assert.Equal(obj.Category, verify.Category)
+
+	oldCategory := obj.Category
+	obj.Category = "test"
+
+	err = DefaultDb().CreateIfNotExistsInTx(obj, tx)
+	assert.Nil(err)
+
+	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	assert.Nil(err)
+	assert.Equal(oldCategory, verify.Category)
 }
