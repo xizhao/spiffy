@@ -16,7 +16,8 @@ const (
 	// EventFlagQuery is a logger.EventFlag
 	EventFlagQuery logger.EventFlag = "spiffy.query"
 
-	explainCommand = "EXPLAIN"
+	explainCommand   = "EXPLAIN"
+	defaultThreshold = 250 * time.Millisecond
 )
 
 // NewLoggerEventListener returns a new listener for diagnostics events.
@@ -98,10 +99,14 @@ func isExplainStatement(statement string) bool {
 	return strings.HasPrefix(statement, explainCommand)
 }
 
-// AddSlowStatementExplanationListener registers a callback to be called with an event containing the output of EXPLAIN ANALYZE for long running SQL queries
-func AddSlowStatementExplanationListener(diagnostics *logger.DiagnosticsAgent, threshold time.Duration, listener func(*SlowStatementExplanation) error) {
+// AddExplainSlowStatementsListener registers a callback to be called with an event containing the output of EXPLAIN ANALYZE for long running SQL queries
+func AddExplainSlowStatementsListener(diagnostics *logger.DiagnosticsAgent, listener func(*SlowStatementExplanation) error, withThreshold ...func(string) time.Duration) {
 	AddStatementEventListener(diagnostics, func(writer logger.Logger, ts logger.TimeSource, eventFlag logger.EventFlag, data ...interface{}) {
 		statement, duration := data[0].(string), data[1].(time.Duration)
+		threshold := defaultThreshold
+		if len(withThreshold) > 0 {
+			threshold = withThreshold[0](statement)
+		}
 		if duration >= threshold && !isExplainStatement(statement) {
 			explanation, err := NewSlowStatementExplanation(statement, duration, threshold)
 			if err != nil {

@@ -31,12 +31,12 @@ func TestSlowStatementExplanation(t *testing.T) {
 func TestSQLEventListeners(t *testing.T) {
 	ch := make(chan int)
 	diagnostics := logger.NewDiagnosticsAgentFromEnvironment()
-	AddSlowStatementExplanationListener(diagnostics, time.Second, func(*SlowStatementExplanation) error {
+	AddExplainSlowStatementsListener(diagnostics, func(*SlowStatementExplanation) error {
 		go func() {
 			ch <- 1
 		}()
 		return nil
 	})
-	diagnostics.OnEvent(EventFlagQuery, "SELECT * FROM test_table", time.Second, nil)
+	diagnostics.OnEvent(EventFlagQuery, "SELECT * FROM test_table", defaultThreshold, nil)
 	<-ch
 }
