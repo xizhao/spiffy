@@ -2,8 +2,8 @@ package spiffy
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	logger "github.com/blendlabs/go-logger"
@@ -35,11 +35,11 @@ type explanationRow struct {
 	QueryPlan string `db:"QUERY PLAN"`
 }
 
-// Explain runs EXPLAIN ANALYZE on a SQL statement and returns the output as a string
-func Explain(statement string) (string, error) {
+// ExplainQuery runs EXPLAIN ANALYZE on a SQL statement and returns the output as a string
+func ExplainQuery(statement string, txs ...*sql.Tx) (string, error) {
 	explanationRows := []explanationRow{}
 	explainQueryString := fmt.Sprintf("%s %s", explainCommand, statement)
-	err := DefaultDb().Query(explainQueryString).OutMany(&explanationRows)
+	err := DefaultDb().QueryInTx(explainQueryString, OptionalTx(txs...)).OutMany(&explanationRows)
 	if err != nil {
 		return "", err
 	}
@@ -74,8 +74,8 @@ func (e *SlowStatementExplanation) String() string {
 }
 
 // NewSlowStatementExplanation makes a new SlowStatementExplanation from a statement body and duration
-func NewSlowStatementExplanation(statement string, duration time.Duration, threshold time.Duration) (*SlowStatementExplanation, error) {
-	explanation, err := Explain(statement)
+func NewSlowStatementExplanation(statement string, duration time.Duration, threshold time.Duration, txs ...*sql.Tx) (*SlowStatementExplanation, error) {
+	explanation, err := ExplainQuery(statement, txs...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +90,14 @@ func NewSlowStatementExplanation(statement string, duration time.Duration, thres
 // AddStatementEventListener registers an EventListener to be invoked on every Query and Execute
 func AddStatementEventListener(diagnostics *logger.DiagnosticsAgent, listener logger.EventListener) {
 	diagnostics.EnableEvent(EventFlagExecute)
-	diagnostics.AddEventListener(EventFlagExecute, listener)
 	diagnostics.EnableEvent(EventFlagQuery)
+
+	diagnostics.AddEventListener(EventFlagExecute, listener)
 	diagnostics.AddEventListener(EventFlagQuery, listener)
 }
 
 func isExplainStatement(statement string) bool {
-	return strings.HasPrefix(statement, explainCommand)
+	return HasPrefixCaseInsensitive(statement, explainCommand)
 }
 
 // AddExplainSlowStatementsListener registers a callback to be called with an event containing the output of EXPLAIN ANALYZE for long running SQL queries
@@ -107,6 +108,7 @@ func AddExplainSlowStatementsListener(diagnostics *logger.DiagnosticsAgent, list
 		if len(withThreshold) > 0 {
 			threshold = withThreshold[0](statement)
 		}
+
 		if duration >= threshold && !isExplainStatement(statement) {
 			explanation, err := NewSlowStatementExplanation(statement, duration, threshold)
 			if err != nil {
