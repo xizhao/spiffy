@@ -17,7 +17,7 @@ const (
 	EventFlagQuery logger.EventFlag = "spiffy.query"
 
 	slowQueryThreshold = 1 * time.Second
-	explainCommand     = "EXPLAIN ANALYZE"
+	explainCommand     = "EXPLAIN"
 )
 
 // NewLoggerEventListener returns a new listener for diagnostics events.

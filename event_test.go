@@ -11,9 +11,12 @@ import (
 
 func TestSlowStatementExplanation(t *testing.T) {
 	assert := assert.New(t)
+	tx, err := DefaultDb().Begin()
+	defer tx.Rollback()
+	assert.Nil(err)
 
 	createTestTable := `CREATE TABLE IF NOT EXISTS test_table (id serial not null primary key);`
-	err := DefaultDb().Exec(createTestTable)
+	err = DefaultDb().ExecInTx(createTestTable, tx)
 	assert.Nil(err)
 
 	explanation, err := NewSlowStatementExplanation("SELECT * FROM test_table", time.Second)
