@@ -19,7 +19,7 @@ func TestSlowStatementExplanation(t *testing.T) {
 	err = DefaultDb().ExecInTx(createTestTable, tx)
 	assert.Nil(err)
 
-	explanation, err := NewSlowStatementExplanation("SELECT * FROM test_table", time.Second)
+	explanation, err := NewSlowStatementExplanation("SELECT * FROM test_table", time.Second, time.Second)
 	assert.Nil(err)
 
 	text := "Statement: SELECT * FROM test_table\nDuration: 1s\nThreshold: 1s\nExplain Analyze:\nSeq Scan on test_table"
@@ -31,7 +31,7 @@ func TestSlowStatementExplanation(t *testing.T) {
 func TestSQLEventListeners(t *testing.T) {
 	ch := make(chan int)
 	diagnostics := logger.NewDiagnosticsAgentFromEnvironment()
-	AddSlowStatementExplanationListener(diagnostics, func(*SlowStatementExplanation) error {
+	AddSlowStatementExplanationListener(diagnostics, time.Second, func(*SlowStatementExplanation) error {
 		go func() {
 			ch <- 1
 		}()

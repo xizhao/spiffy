@@ -16,8 +16,7 @@ const (
 	// EventFlagQuery is a logger.EventFlag
 	EventFlagQuery logger.EventFlag = "spiffy.query"
 
-	slowQueryThreshold = 1 * time.Second
-	explainCommand     = "EXPLAIN"
+	explainCommand = "EXPLAIN"
 )
 
 // NewLoggerEventListener returns a new listener for diagnostics events.
@@ -56,6 +55,7 @@ type SlowStatementExplanation struct {
 	statement   string
 	explanation string
 	duration    time.Duration
+	threshold   time.Duration
 }
 
 // Title provides a brief description
@@ -65,7 +65,7 @@ func (e *SlowStatementExplanation) Title() string {
 
 // Description provides a returns a multiline description of the explain analyze results
 func (e *SlowStatementExplanation) Description() string {
-	return fmt.Sprintf("Statement: %v\nDuration: %v\nThreshold: %v\nExplain Analyze:\n%v", e.statement, e.duration, slowQueryThreshold, e.explanation)
+	return fmt.Sprintf("Statement: %v\nDuration: %v\nThreshold: %v\nExplain Analyze:\n%v", e.statement, e.duration, e.threshold, e.explanation)
 }
 
 func (e *SlowStatementExplanation) String() string {
@@ -73,7 +73,7 @@ func (e *SlowStatementExplanation) String() string {
 }
 
 // NewSlowStatementExplanation makes a new SlowStatementExplanation from a statement body and duration
-func NewSlowStatementExplanation(statement string, duration time.Duration) (*SlowStatementExplanation, error) {
+func NewSlowStatementExplanation(statement string, duration time.Duration, threshold time.Duration) (*SlowStatementExplanation, error) {
 	explanation, err := Explain(statement)
 	if err != nil {
 		return nil, err
@@ -82,6 +82,7 @@ func NewSlowStatementExplanation(statement string, duration time.Duration) (*Slo
 		statement:   statement,
 		explanation: explanation,
 		duration:    duration,
+		threshold:   threshold,
 	}, nil
 }
 
@@ -98,11 +99,11 @@ func isExplainStatement(statement string) bool {
 }
 
 // AddSlowStatementExplanationListener registers a callback to be called with an event containing the output of EXPLAIN ANALYZE for long running SQL queries
-func AddSlowStatementExplanationListener(diagnostics *logger.DiagnosticsAgent, listener func(*SlowStatementExplanation) error) {
+func AddSlowStatementExplanationListener(diagnostics *logger.DiagnosticsAgent, threshold time.Duration, listener func(*SlowStatementExplanation) error) {
 	AddStatementEventListener(diagnostics, func(writer logger.Logger, ts logger.TimeSource, eventFlag logger.EventFlag, data ...interface{}) {
 		statement, duration := data[0].(string), data[1].(time.Duration)
-		if duration >= slowQueryThreshold && !isExplainStatement(statement) {
-			explanation, err := NewSlowStatementExplanation(statement, duration)
+		if duration >= threshold && !isExplainStatement(statement) {
+			explanation, err := NewSlowStatementExplanation(statement, duration, threshold)
 			if err != nil {
 				diagnostics.Error(err)
 				return
