@@ -16,8 +16,8 @@ const (
 	// EventFlagQuery is a logger.EventFlag
 	EventFlagQuery logger.EventFlag = "spiffy.query"
 
-	explainAnalyze    = "EXPLAIN ANALYZE"
-	explainMinElapsed = 1 * time.Second
+	slowQueryThreshold = 1 * time.Second
+	explainCommand     = "EXPLAIN ANALYZE"
 )
 
 // NewLoggerEventListener returns a new listener for diagnostics events.
@@ -31,88 +31,83 @@ func NewLoggerEventListener(action func(writer logger.Logger, ts logger.TimeSour
 	}
 }
 
-// Event is a wrapper for the underlying Event datatype
-type Event struct {
-	Title string
-	Text  string
-}
-
-// NewEvent creates a new Event
-func NewEvent(title, text string) *Event {
-	return &Event{
-		Title: title,
-		Text:  text,
-	}
-}
-
-type queryExplanation struct {
-	statement   string
-	explanation []byte
-	err         error
-}
-
-func (qe *queryExplanation) asEvent() (*Event, error) {
-	if qe.err != nil {
-		return nil, qe.err
-	}
-	eventTitle := fmt.Sprintf("Duration of database query/execute over threshold: %s", explainMinElapsed)
-	eventDescription := fmt.Sprintf("`%s`\n %s", qe.statement, qe.explanation)
-	event := NewEvent(eventTitle, eventDescription)
-	return event, nil
-}
-
 type explanationRow struct {
 	QueryPlan string `db:"QUERY PLAN"`
 }
 
-func newQueryExplanation(statement string) *queryExplanation {
+// Explain runs EXPLAIN ANALYZE on a SQL statement and returns the output as a string
+func Explain(statement string) (string, error) {
 	explanationRows := []explanationRow{}
-	explainQueryString := fmt.Sprintf("%s %s", explainAnalyze, statement)
+	explainQueryString := fmt.Sprintf("%s %s", explainCommand, statement)
 	err := DefaultDb().Query(explainQueryString).OutMany(&explanationRows)
 	if err != nil {
-		return &queryExplanation{
-			err: err,
-		}
+		return "", err
 	}
 	var lines bytes.Buffer
 	for _, result := range explanationRows {
 		lines.WriteString(result.QueryPlan)
 		lines.WriteString("\n")
 	}
-	return &queryExplanation{
-		explanation: lines.Bytes(),
-		statement:   statement,
+	return lines.String(), nil
+}
+
+// SlowStatementExplanation wraps the output of EXPLAIN ANALYZE. It contains the statement, its duration, and a newline delimited explanation
+type SlowStatementExplanation struct {
+	statement   string
+	explanation string
+	duration    time.Duration
+}
+
+// Title provides a brief description
+func (e *SlowStatementExplanation) Title() string {
+	return fmt.Sprintf("Slow SQL Statement (>%v)", e.duration)
+}
+
+// Description provides a returns a multiline description of the explain analyze results
+func (e *SlowStatementExplanation) Description() string {
+	return fmt.Sprintf("Statement: %v\nDuration: %v\nThreshold: %v\nExplain Analyze:\n%v", e.statement, e.duration, slowQueryThreshold, e.explanation)
+}
+
+func (e *SlowStatementExplanation) String() string {
+	return fmt.Sprintf("%s\n%s", e.Title(), e.Description())
+}
+
+// NewSlowStatementExplanation makes a new SlowStatementExplanation from a statement body and duration
+func NewSlowStatementExplanation(statement string, duration time.Duration) (*SlowStatementExplanation, error) {
+	explanation, err := Explain(statement)
+	if err != nil {
+		return nil, err
 	}
+	return &SlowStatementExplanation{
+		statement:   statement,
+		explanation: explanation,
+		duration:    duration,
+	}, nil
 }
 
-func isAutoExplainStatement(statement string) bool {
-	return strings.HasPrefix(statement, explainAnalyze)
-}
-
-func addStatementEventListener(diagnostics *logger.DiagnosticsAgent, listener logger.EventListener) {
+// AddStatementEventListener registers an EventListener to be invoked on every Query and Execute
+func AddStatementEventListener(diagnostics *logger.DiagnosticsAgent, listener logger.EventListener) {
 	diagnostics.EnableEvent(EventFlagExecute)
 	diagnostics.AddEventListener(EventFlagExecute, listener)
 	diagnostics.EnableEvent(EventFlagQuery)
 	diagnostics.AddEventListener(EventFlagQuery, listener)
 }
 
-// AddAutoExplainListener invokes its callback with the output of EXPLAIN ANALYZE for long running SQL queries
-func AddAutoExplainListener(diagnostics *logger.DiagnosticsAgent, listener func(*Event) error) {
-	if diagnostics == nil {
-		return
-	}
-	addStatementEventListener(diagnostics, func(writer logger.Logger, ts logger.TimeSource, eventFlag logger.EventFlag, data ...interface{}) {
-		statement, elapsed := data[0].(string), data[1].(time.Duration)
-		// 1. Only EXPLAIN ANALYZE queries that took longer than threshold
-		// 2. Don't call EXPLAIN ANALYZE on statements beginning with EXPLAIN ANALYZE...
-		if elapsed >= explainMinElapsed && !isAutoExplainStatement(statement) {
-			logger.WriteEventf(writer, ts, eventFlag, logger.ColorYellow, "Duration of SQL statement: %v", elapsed)
-			event, err := newQueryExplanation(statement).asEvent()
+func isExplainStatement(statement string) bool {
+	return strings.HasPrefix(statement, explainCommand)
+}
+
+// AddSlowStatementExplanationListener registers a callback to be called with an event containing the output of EXPLAIN ANALYZE for long running SQL queries
+func AddSlowStatementExplanationListener(diagnostics *logger.DiagnosticsAgent, listener func(*SlowStatementExplanation) error) {
+	AddStatementEventListener(diagnostics, func(writer logger.Logger, ts logger.TimeSource, eventFlag logger.EventFlag, data ...interface{}) {
+		statement, duration := data[0].(string), data[1].(time.Duration)
+		if duration >= slowQueryThreshold && !isExplainStatement(statement) {
+			explanation, err := NewSlowStatementExplanation(statement, duration)
 			if err != nil {
 				diagnostics.Error(err)
 				return
 			}
-			err = listener(event)
+			err = listener(explanation)
 			if err != nil {
 				diagnostics.Error(err)
 				return
