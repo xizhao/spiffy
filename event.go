@@ -61,7 +61,7 @@ type SlowStatementExplanation struct {
 
 // Title provides a brief description
 func (e *SlowStatementExplanation) Title() string {
-	return fmt.Sprintf("Slow SQL Statement (>%v)", e.duration)
+	return fmt.Sprintf("Slow SQL Statement (>%v)", e.threshold)
 }
 
 // Description provides a returns a multiline description of the explain analyze results
