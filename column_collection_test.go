@@ -110,3 +110,12 @@ func TestColumnCollectionWithColumnPrefix(t *testing.T) {
 	assert.False(meta == newMeta, "These pointers should not be the same.")
 	assert.NotEqual(meta.columnPrefix, newMeta.columnPrefix)
 }
+
+func TestColumnCollectionWriteColumns(t *testing.T) {
+	assert := assert.New(t)
+
+	obj := myStruct{}
+	meta := CachedColumnCollectionFromInstance(obj)
+	writeCols := meta.WriteColumns()
+	assert.NotZero(writeCols.Len())
+}

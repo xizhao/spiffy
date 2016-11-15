@@ -973,10 +973,10 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 
 	tableName := object.TableName()
 	cols := CachedColumnCollectionFromInstance(object)
-	writeCols := cols.NotReadOnly().NotSerials().NotPrimaryKeys()
+	writeCols := cols.WriteColumns()
 	pks := cols.PrimaryKeys()
-	allCols := writeCols.ConcatWith(pks)
-	totalValues := allCols.ColumnValues(object)
+	updateCols := cols.UpdateColumns()
+	updateValues := updateCols.ColumnValues(object)
 	numColumns := writeCols.Len()
 
 	queryBodyBuffer := dbc.bufferPool.Get()
@@ -986,10 +986,13 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	queryBodyBuffer.WriteString(tableName)
 	queryBodyBuffer.WriteString(" SET ")
 
-	for i, col := range writeCols.Columns() {
+	var writeColIndex int
+	var col Column
+	for ; writeColIndex < writeCols.Len(); writeColIndex++ {
+		col = writeCols.columns[writeColIndex]
 		queryBodyBuffer.WriteString(col.ColumnName)
-		queryBodyBuffer.WriteString(" = $" + strconv.Itoa(i+1))
-		if i != numColumns-1 {
+		queryBodyBuffer.WriteString(" = $" + strconv.Itoa(writeColIndex+1))
+		if writeColIndex != numColumns-1 {
 			queryBodyBuffer.WriteRune(runeComma)
 		}
 	}
@@ -998,7 +1001,7 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	for i, pk := range pks.Columns() {
 		queryBodyBuffer.WriteString(pk.ColumnName)
 		queryBodyBuffer.WriteString(" = ")
-		queryBodyBuffer.WriteString("$" + strconv.Itoa(i+(numColumns+1)))
+		queryBodyBuffer.WriteString("$" + strconv.Itoa(i+(writeColIndex+1)))
 
 		if i < (pks.Len() - 1) {
 			queryBodyBuffer.WriteString(" AND ")
@@ -1011,13 +1014,14 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		err = exception.Wrap(stmtErr)
 		return
 	}
+
 	defer func() {
 		if !dbc.useStatementCache {
 			err = exception.WrapMany(err, stmt.Close())
 		}
 	}()
 
-	_, execErr := stmt.Exec(totalValues...)
+	_, execErr := stmt.Exec(updateValues...)
 	if execErr != nil {
 		err = exception.Wrap(execErr)
 		return
