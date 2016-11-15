@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"sync"
+
 	"github.com/blendlabs/go-assert"
 )
 
@@ -277,6 +279,32 @@ func TestDbConnectionCreate(t *testing.T) {
 	}
 	err = DefaultDb().CreateInTx(obj, tx)
 	assert.Nil(err)
+}
+
+func TestDbConnectionCreateParallel(t *testing.T) {
+	assert := assert.New(t)
+
+	err := createTable(nil)
+	assert.Nil(err)
+	defer dropTable(nil)
+
+	wg := sync.WaitGroup{}
+	wg.Add(5)
+	for x := 0; x < 5; x++ {
+		go func() {
+			defer wg.Done()
+			obj := &benchObj{
+				Name:      fmt.Sprintf("test_object_0"),
+				Timestamp: time.Now().UTC(),
+				Amount:    1000.0 + (5.0 * float32(0)),
+				Pending:   true,
+				Category:  fmt.Sprintf("category_%d", 0),
+			}
+			err = DefaultDb().CreateInTx(obj, nil)
+			assert.Nil(err)
+		}()
+	}
+	wg.Wait()
 }
 
 func TestDbConnectionUpsert(t *testing.T) {

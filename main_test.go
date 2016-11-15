@@ -115,6 +115,11 @@ func createTable(tx *sql.Tx) error {
 	return DefaultDb().ExecInTx(createSQL, tx)
 }
 
+func dropTable(tx *sql.Tx) error {
+	dropSQL := `DROP TABLE IF NOT EXISTS bench_object;`
+	return DefaultDb().ExecInTx(dropSQL, tx)
+}
+
 func createObject(index int, tx *sql.Tx) error {
 	obj := benchObj{}
 	obj.Name = fmt.Sprintf("test_object_%d", index)
