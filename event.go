@@ -12,9 +12,6 @@ const (
 
 	// EventFlagQuery is a logger.EventFlag
 	EventFlagQuery logger.EventFlag = "spiffy.query"
-
-	explainCommand   = "EXPLAIN"
-	defaultThreshold = 250 * time.Millisecond
 )
 
 // NewLoggerEventListener returns a new listener for diagnostics events.
