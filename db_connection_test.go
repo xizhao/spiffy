@@ -300,8 +300,8 @@ func TestDbConnectionCreateParallel(t *testing.T) {
 				Pending:   true,
 				Category:  fmt.Sprintf("category_%d", 0),
 			}
-			err = DefaultDb().CreateInTx(obj, nil)
-			assert.Nil(err)
+			innerErr := DefaultDb().CreateInTx(obj, nil)
+			assert.Nil(innerErr)
 		}()
 	}
 	wg.Wait()
