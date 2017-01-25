@@ -436,3 +436,46 @@ func TestDbConnectionCreateIfNotExists(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(oldCategory, verify.Category)
 }
+
+func TestDbConnectionInvalidatesBadCachedStatements(t *testing.T) {
+	assert := assert.New(t)
+
+	conn := NewDbConnectionFromEnvironment()
+	defer conn.Close()
+
+	conn.EnableStatementCache()
+	_, err := conn.Open()
+	assert.Nil(err)
+
+	createTableStatement := `CREATE TABLE state_invalidation (id int not null, name varchar(64))`
+	insertStatement := `INSERT INTO state_invalidation (id, name) VALUES ($1, $2)`
+	alterTableStatement := `ALTER TABLE state_invalidation ALTER COLUMN id TYPE bigint;`
+	dropTableStatement := `DROP TABLE state_invalidation`
+	queryStatement := `SELECT * from state_invalidation`
+
+	defer func() {
+		err = conn.Exec(dropTableStatement)
+		assert.Nil(err)
+	}()
+
+	err = conn.Exec(createTableStatement)
+	assert.Nil(err)
+
+	err = conn.Exec(insertStatement, 1, "Foo")
+	assert.Nil(err)
+
+	err = conn.Exec(insertStatement, 2, "Bar")
+	assert.Nil(err)
+
+	_, err = conn.Query(queryStatement).Any()
+	assert.Nil(err)
+
+	err = conn.Exec(alterTableStatement)
+	assert.Nil(err)
+
+	_, err = conn.Query(queryStatement).Any()
+	assert.NotNil(err)
+
+	_, err = conn.Query(queryStatement).Any()
+	assert.Nil(err)
+}

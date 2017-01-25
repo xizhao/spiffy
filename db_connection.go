@@ -316,7 +316,6 @@ func (dbc *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error
 
 // OpenNew returns a new connection object.
 func (dbc *DbConnection) OpenNew() (*sql.DB, error) {
-
 	connStr, err := dbc.CreatePostgresConnectionString()
 	if err != nil {
 		return nil, err
@@ -393,6 +392,9 @@ func (dbc *DbConnection) ExecInTx(statement string, tx *sql.Tx, args ...interfac
 
 	if _, execErr := stmt.Exec(args...); execErr != nil {
 		err = exception.Wrap(execErr)
+		if err != nil && dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(statement)
+		}
 		return
 	}
 
@@ -420,10 +422,10 @@ func (dbc *DbConnection) QueryInTx(statement string, tx *sql.Tx, args ...interfa
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			if !dbc.useStatementCache {
-				result.err = exception.WrapMany(result.err, exception.New(r), stmt.Close())
-			} else {
+			if dbc.useStatementCache {
 				result.err = exception.WrapMany(result.err, exception.New(r))
+			} else {
+				result.err = exception.WrapMany(result.err, exception.New(r), stmt.Close())
 			}
 
 			dbc.transactionUnlock()
@@ -433,6 +435,9 @@ func (dbc *DbConnection) QueryInTx(statement string, tx *sql.Tx, args ...interfa
 	rows, queryErr := stmt.Query(args...)
 	if queryErr != nil {
 		result.err = exception.Wrap(queryErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(statement)
+		}
 		return
 	}
 
@@ -506,7 +511,8 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 		}
 	}
 
-	stmt, stmtErr := dbc.Prepare(queryBodyBuffer.String(), tx)
+	statement := queryBodyBuffer.String()
+	stmt, stmtErr := dbc.Prepare(statement, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
@@ -520,6 +526,9 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 	rows, queryErr := stmt.Query(ids...)
 	if queryErr != nil {
 		err = exception.Wrap(queryErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(statement)
+		}
 		return
 	}
 	defer func() {
@@ -591,9 +600,13 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 	queryBodyBuffer.WriteString(" FROM ")
 	queryBodyBuffer.WriteString(tableName)
 
-	stmt, stmtErr := dbc.Prepare(queryBodyBuffer.String(), tx)
+	statement := queryBodyBuffer.String()
+	stmt, stmtErr := dbc.Prepare(statement, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(statement)
+		}
 		return
 	}
 	defer func() {
@@ -717,6 +730,9 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		_, execErr := stmt.Exec(colValues...)
 		if execErr != nil {
 			err = exception.Wrap(execErr)
+			if dbc.useStatementCache {
+				dbc.statementCache.InvalidateStatement(queryBody)
+			}
 			return
 		}
 	} else {
@@ -827,6 +843,9 @@ func (dbc *DbConnection) CreateIfNotExistsInTx(object DatabaseMapped, tx *sql.Tx
 		_, execErr := stmt.Exec(colValues...)
 		if execErr != nil {
 			err = exception.Wrap(execErr)
+			if dbc.useStatementCache {
+				dbc.statementCache.InvalidateStatement(queryBody)
+			}
 			return
 		}
 	} else {
@@ -941,6 +960,9 @@ func (dbc *DbConnection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err er
 	_, execErr := stmt.Exec(colValues...)
 	if execErr != nil {
 		err = exception.Wrap(execErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(queryBody)
+		}
 		return
 	}
 
@@ -1024,6 +1046,9 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	_, execErr := stmt.Exec(updateValues...)
 	if execErr != nil {
 		err = exception.Wrap(execErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(queryBody)
+		}
 		return
 	}
 
@@ -1106,6 +1131,9 @@ func (dbc *DbConnection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists b
 	if queryErr != nil {
 		exists = false
 		err = exception.Wrap(queryErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(queryBody)
+		}
 		return
 	}
 
@@ -1180,6 +1208,9 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	_, execErr := stmt.Exec(pkValues...)
 	if execErr != nil {
 		err = exception.Wrap(execErr)
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(queryBody)
+		}
 	}
 	return
 }
@@ -1291,6 +1322,9 @@ func (dbc *DbConnection) UpsertInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		execErr := stmt.QueryRow(colValues...).Scan(&id)
 		if execErr != nil {
 			err = exception.Wrap(execErr)
+			if dbc.useStatementCache {
+				dbc.statementCache.InvalidateStatement(queryBody)
+			}
 			return
 		}
 		setErr := serial.SetValue(object, id)
