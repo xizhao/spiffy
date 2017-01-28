@@ -540,8 +540,8 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 
 	var popErr error
 	if rows.Next() {
-		if IsPopulatable(object) {
-			popErr = AsPopulatable(object).Populate(rows)
+		if isPopulatable(object) {
+			popErr = asPopulatable(object).Populate(rows)
 		} else {
 			popErr = PopulateInOrder(object, rows, standardCols)
 		}
@@ -631,14 +631,14 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 	if err != nil {
 		return
 	}
-	isPopulatable := IsPopulatable(v)
+	isPopulatable := isPopulatable(v)
 
 	var popErr error
 	for rows.Next() {
 		newObj, _ := makeNewDatabaseMapped(t)
 
 		if isPopulatable {
-			popErr = AsPopulatable(newObj).Populate(rows)
+			popErr = asPopulatable(newObj).Populate(rows)
 		} else {
 			popErr = PopulateInOrder(newObj, rows, meta)
 			if popErr != nil {

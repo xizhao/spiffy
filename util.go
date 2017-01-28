@@ -24,12 +24,12 @@ func OptionalTx(txs ...*sql.Tx) *sql.Tx {
 }
 
 // AsPopulatable casts an object as populatable.
-func AsPopulatable(object interface{}) Populatable {
+func asPopulatable(object interface{}) Populatable {
 	return object.(Populatable)
 }
 
-// IsPopulatable returns if an object is populatable
-func IsPopulatable(object interface{}) bool {
+// isPopulatable returns if an object is populatable
+func isPopulatable(object interface{}) bool {
 	_, isPopulatable := object.(Populatable)
 	return isPopulatable
 }

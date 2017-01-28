@@ -220,7 +220,7 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 	v := makeNew(sliceInnerType)
 	meta := getCachedColumnCollectionFromType(newColumnCacheKey(sliceInnerType), sliceInnerType)
 
-	isPopulatable := IsPopulatable(v)
+	isPopulatable := isPopulatable(v)
 
 	var popErr error
 	didSetRows := false
@@ -228,7 +228,7 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 		newObj := makeNew(sliceInnerType)
 
 		if isPopulatable {
-			popErr = AsPopulatable(newObj).Populate(q.rows)
+			popErr = asPopulatable(newObj).Populate(q.rows)
 		} else {
 			popErr = PopulateByName(newObj, q.rows, meta)
 		}
