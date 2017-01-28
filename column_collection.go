@@ -359,6 +359,20 @@ func (cc ColumnCollection) ColumnNamesFromAlias(tableAlias string) []string {
 	return names
 }
 
+// ColumnNamesCSVFromAlias returns the string names for all the columns in the collection.
+func (cc ColumnCollection) ColumnNamesCSVFromAlias(tableAlias string) string {
+	names := make([]string, len(cc.columns))
+	for x := 0; x < len(cc.columns); x++ {
+		c := cc.columns[x]
+		if len(cc.columnPrefix) != 0 {
+			names[x] = fmt.Sprintf("%s.%s as %s%s", tableAlias, c.ColumnName, cc.columnPrefix, c.ColumnName)
+		} else {
+			names[x] = fmt.Sprintf("%s.%s", tableAlias, c.ColumnName)
+		}
+	}
+	return csv(names)
+}
+
 // ColumnValues returns the reflected value for all the columns on a given instance.
 func (cc ColumnCollection) ColumnValues(instance interface{}) []interface{} {
 	value := reflectValue(instance)
