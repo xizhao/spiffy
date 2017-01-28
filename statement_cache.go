@@ -5,8 +5,8 @@ import (
 	"sync"
 )
 
-// NewStatementCache returns a new `StatementCache`.
-func NewStatementCache(dbc *sql.DB) *StatementCache {
+// newStatementCache returns a new `StatementCache`.
+func newStatementCache(dbc *sql.DB) *StatementCache {
 	return &StatementCache{
 		dbc:       dbc,
 		cacheLock: &sync.RWMutex{},

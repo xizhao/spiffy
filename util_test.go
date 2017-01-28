@@ -9,9 +9,9 @@ import (
 func TestMakeCsvTokens(t *testing.T) {
 	a := assert.New(t)
 
-	one := ParamTokensCSV(1)
-	two := ParamTokensCSV(2)
-	three := ParamTokensCSV(3)
+	one := paramTokensCSV(1)
+	two := paramTokensCSV(2)
+	three := paramTokensCSV(3)
 
 	a.Equal("$1", one)
 	a.Equal("$1,$2", two)

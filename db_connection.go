@@ -301,7 +301,7 @@ func (dbc *DbConnection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error
 			dbc.statementCacheInitLock.Lock()
 			defer dbc.statementCacheInitLock.Unlock()
 			if dbc.statementCache == nil {
-				dbc.statementCache = NewStatementCache(dbConn)
+				dbc.statementCache = newStatementCache(dbConn)
 			}
 		}
 		return dbc.statementCache.Prepare(statement)
@@ -475,7 +475,7 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 		return exception.New("invalid `ids` parameter.")
 	}
 
-	meta := CachedColumnCollectionFromInstance(object)
+	meta := getCachedColumnCollectionFromInstance(object)
 	standardCols := meta.NotReadOnly()
 	columnNames := standardCols.ColumnNames()
 	tableName := object.TableName()
@@ -583,7 +583,7 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
 	tableName, _ := TableName(t)
-	meta := CachedColumnCollectionFromType(tableName, t).NotReadOnly()
+	meta := getCachedColumnCollectionFromType(tableName, t).NotReadOnly()
 
 	columnNames := meta.ColumnNames()
 
@@ -627,7 +627,7 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 		}
 	}()
 
-	v, err := MakeNewDatabaseMapped(t)
+	v, err := makeNewDatabaseMapped(t)
 	if err != nil {
 		return
 	}
@@ -635,7 +635,7 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 
 	var popErr error
 	for rows.Next() {
-		newObj, _ := MakeNewDatabaseMapped(t)
+		newObj, _ := makeNewDatabaseMapped(t)
 
 		if isPopulatable {
 			popErr = AsPopulatable(newObj).Populate(rows)
@@ -678,7 +678,7 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	dbc.transactionLock()
 	defer dbc.transactionUnlock()
 
-	cols := CachedColumnCollectionFromInstance(object)
+	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
 
 	//NOTE: we're only using one.
@@ -778,7 +778,7 @@ func (dbc *DbConnection) CreateIfNotExistsInTx(object DatabaseMapped, tx *sql.Tx
 	dbc.transactionLock()
 	defer dbc.transactionUnlock()
 
-	cols := CachedColumnCollectionFromInstance(object)
+	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
 
 	//NOTE: we're only using one.
@@ -902,7 +902,7 @@ func (dbc *DbConnection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err er
 		return
 	}
 
-	cols := CachedColumnCollectionFromType(tableName, sliceType)
+	cols := getCachedColumnCollectionFromType(tableName, sliceType)
 	writeCols := cols.NotReadOnly().NotSerials()
 
 	//NOTE: we're only using one.
@@ -994,7 +994,7 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	defer dbc.transactionUnlock()
 
 	tableName := object.TableName()
-	cols := CachedColumnCollectionFromInstance(object)
+	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.WriteColumns()
 	pks := cols.PrimaryKeys()
 	updateCols := cols.UpdateColumns()
@@ -1080,7 +1080,7 @@ func (dbc *DbConnection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists b
 	defer dbc.transactionUnlock()
 
 	tableName := object.TableName()
-	cols := CachedColumnCollectionFromInstance(object)
+	cols := getCachedColumnCollectionFromInstance(object)
 	pks := cols.PrimaryKeys()
 
 	if pks.Len() == 0 {
@@ -1166,7 +1166,7 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	defer dbc.transactionUnlock()
 
 	tableName := object.TableName()
-	cols := CachedColumnCollectionFromInstance(object)
+	cols := getCachedColumnCollectionFromInstance(object)
 	pks := cols.PrimaryKeys()
 
 	if len(pks.Columns()) == 0 {
@@ -1240,7 +1240,7 @@ func (dbc *DbConnection) UpsertInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 	dbc.transactionLock()
 	defer dbc.transactionUnlock()
 
-	cols := CachedColumnCollectionFromInstance(object)
+	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
 
 	conflictUpdateCols := cols.NotReadOnly().NotSerials().NotPrimaryKeys()

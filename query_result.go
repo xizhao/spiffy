@@ -166,7 +166,7 @@ func (q *QueryResult) Out(object interface{}) (err error) {
 		return
 	}
 
-	columnMeta := CachedColumnCollectionFromInstance(object)
+	columnMeta := getCachedColumnCollectionFromInstance(object)
 	var popErr error
 	if q.rows.Next() {
 		if populatable, isPopulatable := object.(Populatable); isPopulatable {
@@ -217,15 +217,15 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 	sliceInnerType := reflectSliceType(collection)
 	collectionValue := reflectValue(collection)
 
-	v := MakeNew(sliceInnerType)
-	meta := CachedColumnCollectionFromType(MakeColumnCacheKey(sliceInnerType), sliceInnerType)
+	v := makeNew(sliceInnerType)
+	meta := getCachedColumnCollectionFromType(newColumnCacheKey(sliceInnerType), sliceInnerType)
 
 	isPopulatable := IsPopulatable(v)
 
 	var popErr error
 	didSetRows := false
 	for q.rows.Next() {
-		newObj := MakeNew(sliceInnerType)
+		newObj := makeNew(sliceInnerType)
 
 		if isPopulatable {
 			popErr = AsPopulatable(newObj).Populate(q.rows)
