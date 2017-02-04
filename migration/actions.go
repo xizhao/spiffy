@@ -13,12 +13,14 @@ const (
 	verbAlter  = "alter"
 	verbRun    = "run"
 
-	nounColumn     = "column"
-	nounTable      = "table"
-	nounIndex      = "index"
-	nounConstraint = "constraint"
-	nounRole       = "role"
-	nounAlways     = "always"
+	nounColumn      = "column"
+	nounTable       = "table"
+	nounIndex       = "index"
+	nounConstraint  = "constraint"
+	nounRole        = "role"
+	nounAlways      = "always"
+	nounIfExists    = "if exists"
+	nounIfNotExists = "if not exists"
 )
 
 // actionName joins a noun and a verb
@@ -126,6 +128,16 @@ func AlwaysRun(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
 	return actionImpl(o, verbRun, nounAlways, c, tx)
 }
 
+// IfExists only runs the statement if the given item exists.
+func IfExists(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
+	return actionImpl1(o, verbRun, nounIfExists, exists, "select_statement", c, tx)
+}
+
+// IfNotExists only runs the statement if the given item doesn't exist.
+func IfNotExists(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
+	return actionImpl1(o, verbRun, nounIfNotExists, notExists, "select_statement", c, tx)
+}
+
 // CreateColumn creates a table on the given connection if it does not exist.
 func CreateColumn(o *Operation, c *spiffy.DbConnection, tx *sql.Tx) error {
 	return actionImpl2(o, verbCreate, nounColumn, columnExists, []string{"table_name", "column_name"}, c, tx)
@@ -203,4 +215,20 @@ func indexExists(c *spiffy.DbConnection, tx *sql.Tx, tableName, indexName string
 // roleExists returns if a role exists or not.
 func roleExists(c *spiffy.DbConnection, tx *sql.Tx, roleName string) (bool, error) {
 	return c.QueryInTx(`SELECT 1 FROM pg_roles WHERE rolname ilike $1`, tx, roleName).Any()
+}
+
+// exists returns if a statement has results.
+func exists(c *spiffy.DbConnection, tx *sql.Tx, selectStatement string) (bool, error) {
+	if !spiffy.HasPrefixCaseInsensitive(selectStatement, "select") {
+		return false, fmt.Errorf("statement must be a `SELECT`")
+	}
+	return c.QueryInTx(selectStatement, tx).Any()
+}
+
+// notExists returns if a statement doesnt have results.
+func notExists(c *spiffy.DbConnection, tx *sql.Tx, selectStatement string) (bool, error) {
+	if !spiffy.HasPrefixCaseInsensitive(selectStatement, "select") {
+		return false, fmt.Errorf("statement must be a `SELECT`")
+	}
+	return c.QueryInTx(selectStatement, tx).None()
 }

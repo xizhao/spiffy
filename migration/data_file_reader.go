@@ -162,7 +162,7 @@ func (dfr *DataFileReader) invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error
 
 			if spiffy.HasPrefixCaseInsensitive(line, "copy") {
 				if !spiffy.HasSuffixCaseInsensitive(line, "from stdin;") {
-					err = fmt.Errorf("Only `stdin` from clauses supported at this time, cannot continue.")
+					err = fmt.Errorf("only `stdin` from clauses supported at this time, cannot continue")
 					return
 				}
 
@@ -185,7 +185,7 @@ func (dfr *DataFileReader) invoke(c *spiffy.DbConnection, tx *sql.Tx) (err error
 			}
 
 			if len(pieces) == 0 {
-				err = fmt.Errorf("Empty data line, we error on this for now.")
+				err = fmt.Errorf("empty data line, we error on this for now")
 				return
 			}
 

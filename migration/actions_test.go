@@ -16,6 +16,11 @@ func createTestTable(tableName string, tx *sql.Tx) error {
 	return step.Apply(spiffy.DefaultDb(), tx)
 }
 
+func insertTestValue(tableName string, id int, name string, tx *sql.Tx) error {
+	body := fmt.Sprintf("INSERT INTO %s (id, name) VALUES ($1, $2);", tableName)
+	return spiffy.DB().ExecInTx(body, tx, id, name)
+}
+
 func createTestColumn(tableName, columnName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD %s varchar(32);", tableName, columnName)
 	step := Step(CreateColumn, Body(body), tableName, columnName)
@@ -125,4 +130,26 @@ func TestCreateRole(t *testing.T) {
 	exists, err := roleExists(spiffy.DefaultDb(), tx, roleName)
 	assert.Nil(err)
 	assert.True(exists, "role does not exist")
+}
+
+func TestNotExists(t *testing.T) {
+	assert := assert.New(t)
+	tx, err := spiffy.DB().Begin()
+	assert.Nil(err)
+	defer tx.Rollback()
+
+	tableName := util.String.RandomString(12)
+	err = createTestTable(tableName, tx)
+	assert.Nil(err)
+
+	err = insertTestValue(tableName, 4, "test", tx)
+	assert.Nil(err)
+
+	ne, err := notExists(spiffy.DB(), tx, fmt.Sprintf(`select * from %s where id = %d`, tableName, 4))
+	assert.Nil(err)
+	assert.False(ne)
+
+	ne, err = notExists(spiffy.DB(), tx, fmt.Sprintf(`select * from %s where id = %d`, tableName, 101))
+	assert.Nil(err)
+	assert.True(ne)
 }
