@@ -511,8 +511,8 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 		}
 	}
 
-	statement := queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(statement, tx)
+	queryBody = queryBodyBuffer.String()
+	stmt, stmtErr := dbc.Prepare(queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
@@ -527,7 +527,7 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 	if queryErr != nil {
 		err = exception.Wrap(queryErr)
 		if dbc.useStatementCache {
-			dbc.statementCache.InvalidateStatement(statement)
+			dbc.statementCache.InvalidateStatement(queryBody)
 		}
 		return
 	}
@@ -600,12 +600,12 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 	queryBodyBuffer.WriteString(" FROM ")
 	queryBodyBuffer.WriteString(tableName)
 
-	statement := queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(statement, tx)
+	queryBody = queryBodyBuffer.String()
+	stmt, stmtErr := dbc.Prepare(queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		if dbc.useStatementCache {
-			dbc.statementCache.InvalidateStatement(statement)
+			dbc.statementCache.InvalidateStatement(queryBody)
 		}
 		return
 	}
