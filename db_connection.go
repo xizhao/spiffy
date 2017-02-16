@@ -177,9 +177,13 @@ func (dbc *DbConnection) Diagnostics() *logger.DiagnosticsAgent {
 	return dbc.diagnostics
 }
 
-func (dbc *DbConnection) fireEvent(flag logger.EventFlag, query string, elapsed time.Duration, err error) {
+func (dbc *DbConnection) fireEvent(flag logger.EventFlag, query string, elapsed time.Duration, err error, label ...string) {
 	if dbc.diagnostics != nil {
-		dbc.diagnostics.OnEvent(flag, query, elapsed, err)
+		if len(label) > 0 {
+			dbc.diagnostics.OnEvent(flag, query, elapsed, err, label[0])
+		} else {
+			dbc.diagnostics.OnEvent(flag, query, elapsed, err)
+		}
 	}
 }
 
@@ -373,8 +377,8 @@ func (dbc *DbConnection) ExecInTx(statement string, tx *sql.Tx, args ...interfac
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	stmt, stmtErr := dbc.Prepare(statement, tx)
 	if stmtErr != nil {
@@ -408,12 +412,12 @@ func (dbc *DbConnection) Query(statement string, args ...interface{}) *QueryResu
 
 // QueryInTx runs the selected statement in a transaction and returns a QueryResult.
 func (dbc *DbConnection) QueryInTx(statement string, tx *sql.Tx, args ...interface{}) (result *QueryResult) {
-	result = &QueryResult{queryBody: statement, start: time.Now(), conn: dbc}
+	result = &QueryResult{queryBody: statement, start: time.Now(), conn: dbc, fireEvents: true}
 	if dbc == nil {
 		result.err = exception.New(DBAliasNilError)
 		return
 	}
-	dbc.transactionLock()
+	dbc.tryTransactionLock()
 
 	stmt, stmtErr := dbc.Prepare(statement, tx)
 	if stmtErr != nil {
@@ -428,7 +432,7 @@ func (dbc *DbConnection) QueryInTx(statement string, tx *sql.Tx, args ...interfa
 				result.err = exception.WrapMany(result.err, exception.New(r), stmt.Close())
 			}
 
-			dbc.transactionUnlock()
+			dbc.tryTransactionUnlock()
 		}
 	}()
 
@@ -468,8 +472,8 @@ func (dbc *DbConnection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...i
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	if ids == nil {
 		return exception.New("invalid `ids` parameter.")
@@ -577,8 +581,8 @@ func (dbc *DbConnection) GetAllInTx(collection interface{}, tx *sql.Tx) (err err
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
@@ -675,8 +679,8 @@ func (dbc *DbConnection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
@@ -775,8 +779,8 @@ func (dbc *DbConnection) CreateIfNotExistsInTx(object DatabaseMapped, tx *sql.Tx
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
@@ -888,8 +892,8 @@ func (dbc *DbConnection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err er
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	sliceValue := reflectValue(objects)
 	if sliceValue.Len() == 0 {
@@ -990,8 +994,8 @@ func (dbc *DbConnection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	tableName := object.TableName()
 	cols := getCachedColumnCollectionFromInstance(object)
@@ -1076,8 +1080,8 @@ func (dbc *DbConnection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists b
 		return false, exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	tableName := object.TableName()
 	cols := getCachedColumnCollectionFromInstance(object)
@@ -1162,8 +1166,8 @@ func (dbc *DbConnection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return exception.New(DBAliasNilError)
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	tableName := object.TableName()
 	cols := getCachedColumnCollectionFromInstance(object)
@@ -1237,8 +1241,8 @@ func (dbc *DbConnection) UpsertInTx(object DatabaseMapped, tx *sql.Tx) (err erro
 		return
 	}
 
-	dbc.transactionLock()
-	defer dbc.transactionUnlock()
+	dbc.tryTransactionLock()
+	defer dbc.tryTransactionUnlock()
 
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
@@ -1402,7 +1406,7 @@ func (dbc *DbConnection) Rollback(tx *sql.Tx) error {
 	return tx.Rollback()
 }
 
-func (dbc *DbConnection) transactionLock() {
+func (dbc *DbConnection) tryTransactionLock() {
 	if dbc == nil {
 		return
 	}
@@ -1412,7 +1416,7 @@ func (dbc *DbConnection) transactionLock() {
 	}
 }
 
-func (dbc *DbConnection) transactionUnlock() {
+func (dbc *DbConnection) tryTransactionUnlock() {
 	if dbc == nil {
 		return
 	}
