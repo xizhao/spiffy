@@ -177,13 +177,14 @@ func (dbc *DbConnection) Diagnostics() *logger.DiagnosticsAgent {
 	return dbc.diagnostics
 }
 
-func (dbc *DbConnection) fireEvent(flag logger.EventFlag, query string, elapsed time.Duration, err error, label ...string) {
+func (dbc *DbConnection) fireEvent(flag logger.EventFlag, query string, elapsed time.Duration, err error, optionalQueryLabel ...string) {
 	if dbc.diagnostics != nil {
-		if len(label) > 0 {
-			dbc.diagnostics.OnEvent(flag, query, elapsed, err, label[0])
-		} else {
-			dbc.diagnostics.OnEvent(flag, query, elapsed, err)
+		var queryLabel string
+		if len(optionalQueryLabel) > 0 {
+			queryLabel = optionalQueryLabel[0]
 		}
+
+		dbc.diagnostics.OnEvent(flag, query, elapsed, err, queryLabel)
 	}
 }
 
