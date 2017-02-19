@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
 	util "github.com/blendlabs/go-util"
 	"github.com/blendlabs/spiffy"
 	"github.com/blendlabs/spiffy/migration"
+	"github.com/jackc/pgx"
 )
 
 const (
@@ -45,6 +47,10 @@ type testObject struct {
 }
 
 func (to *testObject) PopulateInternal(rows *sql.Rows) error {
+	return rows.Scan(&to.ID, &to.UUID, &to.CreatedUTC, &to.UpdatedUTC, &to.Active, &to.Name, &to.Variance)
+}
+
+func (to *testObject) PGXPopulate(rows *pgx.Rows) error {
 	return rows.Scan(&to.ID, &to.UUID, &to.CreatedUTC, &to.UpdatedUTC, &to.Active, &to.Name, &to.Variance)
 }
 
@@ -177,7 +183,104 @@ func benchHarness(db *spiffy.DbConnection, parallelism int, queryLimit int, acce
 	return durations, nil
 }
 
+func pgxFetchItems(pool *pgx.ConnPool) ([]testObject, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer pool.Release(conn)
+
+	var items []testObject
+	rows, err := conn.Query(selectQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		to := newTestObject()
+		err = to.PGXPopulate(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, *to)
+	}
+	return items, nil
+}
+
+func benchPGX(parallelism int, queryLimit int) ([]time.Duration, error) {
+	var pool *pgx.ConnPool
+	var config pgx.ConnPoolConfig
+	config.Host = "localhost"
+	config.Database = os.Getenv("DB_NAME")
+	var err error
+
+	pool, err = pgx.NewConnPool(config)
+	if err != nil {
+		return nil, err
+	}
+
+	var durations []time.Duration
+	var waitHandle = sync.WaitGroup{}
+	var errors = make(chan error, parallelism)
+
+	waitHandle.Add(parallelism)
+	for threadID := 0; threadID < parallelism; threadID++ {
+		go func() {
+			defer waitHandle.Done()
+
+			for iteration := 0; iteration < iterationCount; iteration++ {
+				start := time.Now()
+
+				items, err := pgxFetchItems(pool)
+				if err != nil {
+					errors <- err
+					return
+				}
+
+				durations = append(durations, time.Since(start))
+
+				if len(items) < queryLimit {
+					errors <- fmt.Errorf("Returned item count less than %d", queryLimit)
+					return
+				}
+
+				if len(items[len(items)>>1].UUID) == 0 {
+					errors <- fmt.Errorf("Returned items have empty `UUID` fields")
+					return
+				}
+
+				if len(items[len(items)>>1].Name) == 0 {
+					errors <- fmt.Errorf("Returned items have empty `Name` fields")
+					return
+				}
+
+				if items[len(items)>>1].Variance == 0 {
+					errors <- fmt.Errorf("Returned items have empty `Variance`")
+					return
+				}
+
+				if items[0].UUID == items[len(items)>>1].UUID {
+					errors <- fmt.Errorf("UUIDs are equal between records")
+					return
+				}
+			}
+		}()
+	}
+	waitHandle.Wait()
+
+	if len(errors) > 0 {
+		return durations, <-errors
+	}
+
+	return durations, nil
+}
+
 func main() {
+
+	// default db is used by the migration framework to build the test database
+	// it is not used by the benchmarks.
 	err := spiffy.SetDefaultDb(spiffy.NewDbConnectionFromEnvironment())
 	if err != nil {
 		log.Fatal(err)
@@ -196,6 +299,13 @@ func main() {
 	}
 
 	fmt.Println("Finished seeding objects, starting load test.")
+
+	pgxStart := time.Now()
+	pgxTimings, err := benchPGX(threadCount, selectCount)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("PGX Elapsed: %v\n", time.Since(pgxStart))
 
 	// do spiffy query
 	uncached := spiffy.NewDbConnectionFromEnvironment()
@@ -247,10 +357,12 @@ func main() {
 	fmt.Printf("\tAvg Baseline                 : %v\n", util.Math.MeanOfDuration(baselineTimings))
 	fmt.Printf("\tAvg Spiffy                   : %v\n", util.Math.MeanOfDuration(spiffyTimings))
 	fmt.Printf("\tAvg Spiffy (Statement Cache) : %v\n", util.Math.MeanOfDuration(spiffyCachedTimings))
+	fmt.Printf("\tAvg PGX                      : %v\n", util.Math.MeanOfDuration(pgxTimings))
 
 	println()
 
 	fmt.Printf("\t99th Baseline                 : %v\n", util.Math.PercentileOfDuration(baselineTimings, 99.0))
 	fmt.Printf("\t99th Spiffy                   : %v\n", util.Math.PercentileOfDuration(spiffyTimings, 99.0))
 	fmt.Printf("\t99th Spiffy (Statement Cache) : %v\n", util.Math.PercentileOfDuration(spiffyCachedTimings, 99.0))
+	fmt.Printf("\t99th PGX                      : %v\n", util.Math.PercentileOfDuration(pgxTimings, 99.0))
 }
