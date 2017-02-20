@@ -11,14 +11,14 @@ func TestStatementCachePrepare(t *testing.T) {
 
 	sc := newStatementCache(Default().Connection)
 	query := "select 'ok'"
-	stmt, err := sc.Prepare(query)
+	stmt, err := sc.Prepare(query, query)
 
 	assert.Nil(err)
 	assert.NotNil(stmt)
 	assert.True(sc.HasStatement(query))
 
 	// shoul result in cache hit
-	stmt, err = sc.Prepare(query)
+	stmt, err = sc.Prepare(query, query)
 	assert.NotNil(stmt)
 	assert.True(sc.HasStatement(query))
 }

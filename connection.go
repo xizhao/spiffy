@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	//DBAliasNilError is a common error
-	DBAliasNilError = "Connection is nil; did you set up a DbAlias for your project?"
+	//DBNilError is a common error
+	DBNilError = "connection is nil"
 )
 
 const (
@@ -39,10 +39,10 @@ const (
 // NewConnection returns a new DbConnectin.
 func NewConnection() *Connection {
 	return &Connection{
-		bufferPool:             NewBufferPool(1024),
-		useStatementCache:      false, //doesnt actually help perf, maybe someday.
-		statementCacheInitLock: &sync.Mutex{},
-		connectionLock:         &sync.Mutex{},
+		bufferPool:         NewBufferPool(1024),
+		useStatementCache:  false, //doesnt actually help perf, maybe someday.
+		statementCacheLock: &sync.Mutex{},
+		connectionLock:     &sync.Mutex{},
 	}
 }
 
@@ -141,8 +141,8 @@ type Connection struct {
 	// Connection is the underlying sql driver connection for the Connection.
 	Connection *sql.DB
 
-	connectionLock         *sync.Mutex
-	statementCacheInitLock *sync.Mutex
+	connectionLock     *sync.Mutex
+	statementCacheLock *sync.Mutex
 
 	bufferPool  *BufferPool
 	diagnostics *logger.DiagnosticsAgent
@@ -230,10 +230,6 @@ func (dbc *Connection) CreatePostgresConnectionString() (string, error) {
 
 // Begin starts a new transaction.
 func (dbc *Connection) Begin() (*sql.Tx, error) {
-	if dbc == nil {
-		return nil, exception.New(DBAliasNilError)
-	}
-
 	if dbc.Connection != nil {
 		tx, txErr := dbc.Connection.Begin()
 		return tx, exception.Wrap(txErr)
@@ -249,10 +245,6 @@ func (dbc *Connection) Begin() (*sql.Tx, error) {
 
 // Prepare prepares a new statement for the connection.
 func (dbc *Connection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) {
-	if dbc == nil {
-		return nil, exception.New(DBAliasNilError)
-	}
-
 	if tx != nil {
 		stmt, err := tx.Prepare(statement)
 		if err != nil {
@@ -283,8 +275,8 @@ func (dbc *Connection) PrepareCached(id, statement string, tx *sql.Tx) (*sql.Stm
 			return nil, exception.Wrap(err)
 		}
 		if dbc.statementCache == nil {
-			dbc.statementCacheInitLock.Lock()
-			defer dbc.statementCacheInitLock.Unlock()
+			dbc.statementCacheLock.Lock()
+			defer dbc.statementCacheLock.Unlock()
 			if dbc.statementCache == nil {
 				dbc.statementCache = newStatementCache(dbConn)
 			}
@@ -349,19 +341,17 @@ func (dbc *Connection) ExecInTx(statement string, tx *sql.Tx, args ...interface{
 		dbc.fireEvent(EventFlagExecute, statement, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
-	stmt, stmtErr := dbc.Prepare(statement, tx)
+	stmt, stmtErr := dbc.PrepareCached(statement, statement, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
 	}
 	defer func() {
-		closeErr := stmt.Close()
-		if closeErr != nil {
-			err = exception.Nest(err, closeErr)
+		if !dbc.useStatementCache {
+			closeErr := stmt.Close()
+			if closeErr != nil {
+				err = exception.Nest(err, closeErr)
+			}
 		}
 	}()
 
@@ -384,13 +374,12 @@ func (dbc *Connection) Query(statement string, args ...interface{}) *QueryResult
 // QueryInTx runs the selected statement in a transaction and returns a QueryResult.
 func (dbc *Connection) QueryInTx(statement string, tx *sql.Tx, args ...interface{}) (result *QueryResult) {
 	result = &QueryResult{queryBody: statement, start: time.Now(), conn: dbc, fireEvents: true}
-	if dbc == nil {
-		result.err = exception.New(DBAliasNilError)
-		return
-	}
 
-	stmt, stmtErr := dbc.Prepare(statement, tx)
+	stmt, stmtErr := dbc.PrepareCached(statement, statement, tx)
 	if stmtErr != nil {
+		if dbc.useStatementCache {
+			dbc.statementCache.InvalidateStatement(statement)
+		}
 		result.err = exception.Wrap(stmtErr)
 		return
 	}
@@ -406,10 +395,10 @@ func (dbc *Connection) QueryInTx(statement string, tx *sql.Tx, args ...interface
 
 	rows, queryErr := stmt.Query(args...)
 	if queryErr != nil {
-		result.err = exception.Wrap(queryErr)
 		if dbc.useStatementCache {
 			dbc.statementCache.InvalidateStatement(statement)
 		}
+		result.err = exception.Wrap(queryErr)
 		return
 	}
 
@@ -436,10 +425,6 @@ func (dbc *Connection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...int
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
 	if ids == nil {
 		return exception.New("invalid `ids` parameter.")
 	}
@@ -450,53 +435,49 @@ func (dbc *Connection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...int
 
 	statementID := fmt.Sprintf("%s_get", tableName)
 
-	var stmt *sql.Stmt
-	var stmtErr error
-	if dbc.useStatementCache {
-		stmt = dbc.statementCache.getCachedStatement(statementID)
-	} else {
-		columnNames := standardCols.ColumnNames()
-		pks := standardCols.PrimaryKeys()
-		if pks.Len() == 0 {
-			err = exception.New("no primary key on object to get by.")
-			return
-		}
-
-		queryBodyBuffer := dbc.bufferPool.Get()
-		defer dbc.bufferPool.Put(queryBodyBuffer)
-
-		queryBodyBuffer.WriteString("SELECT ")
-		for i, name := range columnNames {
-			queryBodyBuffer.WriteString(name)
-			if i < (len(columnNames) - 1) {
-				queryBodyBuffer.WriteRune(runeComma)
-			}
-		}
-
-		queryBodyBuffer.WriteString(" FROM ")
-		queryBodyBuffer.WriteString(tableName)
-		queryBodyBuffer.WriteString(" WHERE ")
-
-		for i, pk := range pks.Columns() {
-			queryBodyBuffer.WriteString(pk.ColumnName)
-			queryBodyBuffer.WriteString(" = ")
-			queryBodyBuffer.WriteString("$" + strconv.Itoa(i+1))
-
-			if i < (pks.Len() - 1) {
-				queryBodyBuffer.WriteString(" AND ")
-			}
-		}
-
-		queryBody = queryBodyBuffer.String()
-		stmt, stmtErr = dbc.Prepare(queryBody, tx)
-		if stmtErr != nil {
-			err = exception.Wrap(stmtErr)
-			return
-		}
-		defer func() {
-			err = exception.Nest(err, stmt.Close())
-		}()
+	columnNames := standardCols.ColumnNames()
+	pks := standardCols.PrimaryKeys()
+	if pks.Len() == 0 {
+		err = exception.New("no primary key on object to get by.")
+		return
 	}
+
+	queryBodyBuffer := dbc.bufferPool.Get()
+	defer dbc.bufferPool.Put(queryBodyBuffer)
+
+	queryBodyBuffer.WriteString("SELECT ")
+	for i, name := range columnNames {
+		queryBodyBuffer.WriteString(name)
+		if i < (len(columnNames) - 1) {
+			queryBodyBuffer.WriteRune(runeComma)
+		}
+	}
+
+	queryBodyBuffer.WriteString(" FROM ")
+	queryBodyBuffer.WriteString(tableName)
+	queryBodyBuffer.WriteString(" WHERE ")
+
+	for i, pk := range pks.Columns() {
+		queryBodyBuffer.WriteString(pk.ColumnName)
+		queryBodyBuffer.WriteString(" = ")
+		queryBodyBuffer.WriteString("$" + strconv.Itoa(i+1))
+
+		if i < (pks.Len() - 1) {
+			queryBodyBuffer.WriteString(" AND ")
+		}
+	}
+
+	queryBody = queryBodyBuffer.String()
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
+	if stmtErr != nil {
+		err = exception.Wrap(stmtErr)
+		return
+	}
+	defer func() {
+		if !dbc.useStatementCache {
+			stmt.Close()
+		}
+	}()
 
 	rows, queryErr := stmt.Query(ids...)
 	if queryErr != nil {
@@ -548,13 +529,11 @@ func (dbc *Connection) GetAllInTx(collection interface{}, tx *sql.Tx) (err error
 		dbc.fireEvent(EventFlagQuery, queryBody, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
 	collectionValue := reflectValue(collection)
 	t := reflectSliceType(collection)
 	tableName, _ := TableName(t)
+	statementID := fmt.Sprintf("%s_get_all", tableName)
+
 	meta := getCachedColumnCollectionFromType(tableName, t).NotReadOnly()
 
 	columnNames := meta.ColumnNames()
@@ -573,7 +552,7 @@ func (dbc *Connection) GetAllInTx(collection interface{}, tx *sql.Tx) (err error
 	queryBodyBuffer.WriteString(tableName)
 
 	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		if dbc.useStatementCache {
@@ -643,16 +622,13 @@ func (dbc *Connection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
 
 	//NOTE: we're only using one.
 	serials := cols.Serials()
 	tableName := object.TableName()
+	statementID := fmt.Sprintf("%s_create", tableName)
 	colNames := writeCols.ColumnNames()
 	colValues := writeCols.ColumnValues(object)
 
@@ -684,14 +660,14 @@ func (dbc *Connection) CreateInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 	}
 
 	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
 	}
 	defer func() {
 		if !dbc.useStatementCache {
-			err = exception.Nest(err, stmt.Close())
+			stmt.Close()
 		}
 	}()
 
@@ -740,10 +716,6 @@ func (dbc *Connection) CreateIfNotExistsInTx(object DatabaseMapped, tx *sql.Tx) 
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
 
@@ -751,6 +723,7 @@ func (dbc *Connection) CreateIfNotExistsInTx(object DatabaseMapped, tx *sql.Tx) 
 	serials := cols.Serials()
 	pks := cols.PrimaryKeys()
 	tableName := object.TableName()
+	statementID := fmt.Sprintf("%s_create_if_not_exists", tableName)
 	colNames := writeCols.ColumnNames()
 	colValues := writeCols.ColumnValues(object)
 
@@ -794,7 +767,7 @@ func (dbc *Connection) CreateIfNotExistsInTx(object DatabaseMapped, tx *sql.Tx) 
 	}
 
 	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
@@ -849,10 +822,6 @@ func (dbc *Connection) CreateManyInTx(objects interface{}, tx *sql.Tx) (err erro
 		}
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
-
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
 
 	sliceValue := reflectValue(objects)
 	if sliceValue.Len() == 0 {
@@ -949,10 +918,6 @@ func (dbc *Connection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
 	tableName := object.TableName()
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.WriteColumns()
@@ -991,7 +956,8 @@ func (dbc *Connection) UpdateInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 	}
 
 	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	statementID := fmt.Sprintf("%s_update", tableName)
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
@@ -1031,10 +997,6 @@ func (dbc *Connection) ExistsInTx(object DatabaseMapped, tx *sql.Tx) (exists boo
 		}
 		dbc.fireEvent(EventFlagQuery, queryBody, time.Now().Sub(start), err)
 	}()
-
-	if dbc == nil {
-		return false, exception.New(DBAliasNilError)
-	}
 
 	tableName := object.TableName()
 	cols := getCachedColumnCollectionFromInstance(object)
@@ -1115,10 +1077,6 @@ func (dbc *Connection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
 
-	if dbc == nil {
-		return exception.New(DBAliasNilError)
-	}
-
 	tableName := object.TableName()
 	cols := getCachedColumnCollectionFromInstance(object)
 	pks := cols.PrimaryKeys()
@@ -1146,7 +1104,8 @@ func (dbc *Connection) DeleteInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 	}
 
 	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	statementID := fmt.Sprintf("%s_delete", tableName)
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
@@ -1185,11 +1144,6 @@ func (dbc *Connection) UpsertInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 		}
 		dbc.fireEvent(EventFlagExecute, queryBody, time.Now().Sub(start), err)
 	}()
-
-	if dbc == nil {
-		err = exception.New(DBAliasNilError)
-		return
-	}
 
 	cols := getCachedColumnCollectionFromInstance(object)
 	writeCols := cols.NotReadOnly().NotSerials()
@@ -1257,7 +1211,8 @@ func (dbc *Connection) UpsertInTx(object DatabaseMapped, tx *sql.Tx) (err error)
 	}
 
 	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
+	statementID := fmt.Sprintf("%s_upsert", tableName)
+	stmt, stmtErr := dbc.PrepareCached(statementID, queryBody, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
