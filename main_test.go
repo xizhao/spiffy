@@ -17,7 +17,7 @@ import (
 
 // TestMain is the testing entrypoint.
 func TestMain(m *testing.M) {
-	err := SetDefaultDb(NewDbConnectionFromEnvironment())
+	err := InitDefault(NewConnectionFromEnvironment())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 
 // BenchmarkMain is the benchmarking entrypoint.
 func BenchmarkMain(b *testing.B) {
-	tx, txErr := DefaultDb().Begin()
+	tx, txErr := Default().Begin()
 	if txErr != nil {
 		b.Error("Unable to create transaction")
 		b.FailNow()
@@ -86,7 +86,7 @@ func (uo upsertObj) TableName() string {
 
 func createUpserObjectTable(tx *sql.Tx) error {
 	createSQL := `CREATE TABLE IF NOT EXISTS upsert_object (uuid varchar(255) primary key, timestamp_utc timestamp, category varchar(255));`
-	return DefaultDb().ExecInTx(createSQL, tx)
+	return Default().ExecInTx(createSQL, tx)
 }
 
 //------------------------------------------------------------------------------------------------
@@ -112,12 +112,12 @@ func (b benchObj) TableName() string {
 
 func createTable(tx *sql.Tx) error {
 	createSQL := `CREATE TABLE IF NOT EXISTS bench_object (id serial not null primary key, name varchar(255), timestamp_utc timestamp, amount real, pending boolean, category varchar(255));`
-	return DefaultDb().ExecInTx(createSQL, tx)
+	return Default().ExecInTx(createSQL, tx)
 }
 
 func dropTable(tx *sql.Tx) error {
 	dropSQL := `DROP TABLE IF NOT EXISTS bench_object;`
-	return DefaultDb().ExecInTx(dropSQL, tx)
+	return Default().ExecInTx(dropSQL, tx)
 }
 
 func createObject(index int, tx *sql.Tx) error {
@@ -127,7 +127,7 @@ func createObject(index int, tx *sql.Tx) error {
 	obj.Amount = 1000.0 + (5.0 * float32(index))
 	obj.Pending = index%2 == 0
 	obj.Category = fmt.Sprintf("category_%d", index)
-	return exception.Wrap(DefaultDb().CreateInTx(&obj, tx))
+	return exception.Wrap(Default().CreateInTx(&obj, tx))
 }
 
 func seedObjects(count int, tx *sql.Tx) error {
@@ -148,7 +148,7 @@ func seedObjects(count int, tx *sql.Tx) error {
 func readManual(tx *sql.Tx) ([]benchObj, error) {
 	objs := []benchObj{}
 	readSQL := `select id,name,timestamp_utc,amount,pending,category from bench_object`
-	readStmt, readStmtErr := DefaultDb().Prepare(readSQL, tx)
+	readStmt, readStmtErr := Default().Prepare(readSQL, tx)
 	if readStmtErr != nil {
 		return nil, readStmtErr
 	}
@@ -174,6 +174,6 @@ func readManual(tx *sql.Tx) ([]benchObj, error) {
 
 func readOrm(tx *sql.Tx) ([]benchObj, error) {
 	objs := []benchObj{}
-	allErr := DefaultDb().GetAllInTx(&objs, tx)
+	allErr := Default().GetAllInTx(&objs, tx)
 	return objs, allErr
 }

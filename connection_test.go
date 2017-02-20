@@ -11,9 +11,9 @@ import (
 	"github.com/blendlabs/go-assert"
 )
 
-func TestNewAunauthenticatedDbConnection(t *testing.T) {
+func TestNewAunauthenticatedConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewDbConnectionWithHost("test_host", "test_database")
+	conn := NewConnectionWithHost("test_host", "test_database")
 	a.Equal("test_host", conn.Host)
 	a.Equal("test_database", conn.Database)
 	str, err := conn.CreatePostgresConnectionString()
@@ -21,9 +21,9 @@ func TestNewAunauthenticatedDbConnection(t *testing.T) {
 	a.Equal("postgres://test_host/test_database?sslmode=disable", str)
 }
 
-func TestNewDbConnection(t *testing.T) {
+func TestNewConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewDbConnectionWithPassword("test_host", "test_database", "test_user", "test_password")
+	conn := NewConnectionWithPassword("test_host", "test_database", "test_user", "test_password")
 	a.Equal("test_host", conn.Host)
 	a.Equal("test_database", conn.Database)
 	a.Equal("test_user", conn.Username)
@@ -33,9 +33,9 @@ func TestNewDbConnection(t *testing.T) {
 	a.Equal("postgres://test_user:test_password@test_host/test_database?sslmode=disable", str)
 }
 
-func TestNewSSLDbConnection(t *testing.T) {
+func TestNewSSLConnection(t *testing.T) {
 	a := assert.New(t)
-	conn := NewDbConnectionWithSSLMode("test_host", "test_database", "test_user", "test_password", "a good one")
+	conn := NewConnectionWithSSLMode("test_host", "test_database", "test_user", "test_password", "a good one")
 	a.Equal("test_host", conn.Host)
 	a.Equal("test_database", conn.Database)
 	a.Equal("test_user", conn.Username)
@@ -49,7 +49,7 @@ func TestNewSSLDbConnection(t *testing.T) {
 // TestConnectionSanityCheck tests if we can connect to the db, a.k.a., if the underlying driver works.
 func TestConnectionSanityCheck(t *testing.T) {
 	assert := assert.New(t)
-	config := NewDbConnectionFromEnvironment()
+	config := NewConnectionFromEnvironment()
 	str, err := config.CreatePostgresConnectionString()
 	assert.Nil(err)
 	_, err = sql.Open("postgres", str)
@@ -58,7 +58,7 @@ func TestConnectionSanityCheck(t *testing.T) {
 
 func TestPrepare(t *testing.T) {
 	a := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	a.Nil(err)
 	defer tx.Rollback()
 
@@ -70,7 +70,7 @@ func TestQuery(t *testing.T) {
 	t.Skip()
 
 	a := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	a.Nil(err)
 	defer tx.Rollback()
 
@@ -78,31 +78,31 @@ func TestQuery(t *testing.T) {
 	a.Nil(err)
 
 	objs := []benchObj{}
-	err = DefaultDb().QueryInTx("select * from bench_object", tx).OutMany(&objs)
+	err = Default().QueryInTx("select * from bench_object", tx).OutMany(&objs)
 
 	a.Nil(err)
 	a.NotEmpty(objs)
 
 	all := []benchObj{}
-	err = DefaultDb().GetAllInTx(&all, tx)
+	err = Default().GetAllInTx(&all, tx)
 	a.Nil(err)
 	a.Equal(len(objs), len(all))
 
 	obj := benchObj{}
-	err = DefaultDb().QueryInTx("select * from bench_object limit 1", tx).Out(&obj)
+	err = Default().QueryInTx("select * from bench_object limit 1", tx).Out(&obj)
 	a.Nil(err)
 	a.NotEqual(obj.ID, 0)
 
 	var id int
-	err = DefaultDb().QueryInTx("select id from bench_object limit 1", tx).Scan(&id)
+	err = Default().QueryInTx("select id from bench_object limit 1", tx).Scan(&id)
 	a.Nil(err)
 	a.NotEqual(id, 0)
 }
 
-func TestDbConnectionStatementCacheExecute(t *testing.T) {
+func TestConnectionStatementCacheExecute(t *testing.T) {
 	a := assert.New(t)
 
-	conn := NewDbConnectionFromEnvironment()
+	conn := NewConnectionFromEnvironment()
 	defer func() {
 		closeErr := conn.Close()
 		a.Nil(closeErr)
@@ -121,10 +121,10 @@ func TestDbConnectionStatementCacheExecute(t *testing.T) {
 	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
 }
 
-func TestDbConnectionStatementCacheQuery(t *testing.T) {
+func TestConnectionStatementCacheQuery(t *testing.T) {
 	a := assert.New(t)
 
-	conn := NewDbConnectionFromEnvironment()
+	conn := NewConnectionFromEnvironment()
 	defer func() {
 		closeErr := conn.Close()
 		a.Nil(closeErr)
@@ -148,7 +148,7 @@ func TestDbConnectionStatementCacheQuery(t *testing.T) {
 
 func TestCRUDMethods(t *testing.T) {
 	a := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	a.Nil(err)
 	defer tx.Rollback()
 
@@ -156,49 +156,49 @@ func TestCRUDMethods(t *testing.T) {
 	a.Nil(seedErr)
 
 	objs := []benchObj{}
-	queryErr := DefaultDb().QueryInTx("select * from bench_object", tx).OutMany(&objs)
+	queryErr := Default().QueryInTx("select * from bench_object", tx).OutMany(&objs)
 
 	a.Nil(queryErr)
 	a.NotEmpty(objs)
 
 	all := []benchObj{}
-	allErr := DefaultDb().GetAllInTx(&all, tx)
+	allErr := Default().GetAllInTx(&all, tx)
 	a.Nil(allErr)
 	a.Equal(len(objs), len(all))
 
 	sampleObj := all[0]
 
 	getTest := benchObj{}
-	getTestErr := DefaultDb().GetByIDInTx(&getTest, tx, sampleObj.ID)
+	getTestErr := Default().GetByIDInTx(&getTest, tx, sampleObj.ID)
 	a.Nil(getTestErr)
 	a.Equal(sampleObj.ID, getTest.ID)
 
-	exists, existsErr := DefaultDb().ExistsInTx(&getTest, tx)
+	exists, existsErr := Default().ExistsInTx(&getTest, tx)
 	a.Nil(existsErr)
 	a.True(exists)
 
 	getTest.Name = "not_a_test_object"
 
-	updateErr := DefaultDb().UpdateInTx(&getTest, tx)
+	updateErr := Default().UpdateInTx(&getTest, tx)
 	a.Nil(updateErr)
 
 	verify := benchObj{}
-	verifyErr := DefaultDb().GetByIDInTx(&verify, tx, getTest.ID)
+	verifyErr := Default().GetByIDInTx(&verify, tx, getTest.ID)
 	a.Nil(verifyErr)
 	a.Equal(getTest.Name, verify.Name)
 
-	deleteErr := DefaultDb().DeleteInTx(&verify, tx)
+	deleteErr := Default().DeleteInTx(&verify, tx)
 	a.Nil(deleteErr)
 
 	delVerify := benchObj{}
-	delVerifyErr := DefaultDb().GetByIDInTx(&delVerify, tx, getTest.ID)
+	delVerifyErr := Default().GetByIDInTx(&delVerify, tx, getTest.ID)
 	a.Nil(delVerifyErr)
 }
 
-func TestDbConnectionOpen(t *testing.T) {
+func TestConnectionOpen(t *testing.T) {
 	a := assert.New(t)
 
-	testAlias := NewDbConnectionFromEnvironment()
+	testAlias := NewConnectionFromEnvironment()
 	db, dbErr := testAlias.Open()
 	a.Nil(dbErr)
 	a.NotNil(db)
@@ -207,63 +207,17 @@ func TestDbConnectionOpen(t *testing.T) {
 
 func TestExec(t *testing.T) {
 	a := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	a.Nil(err)
 	defer tx.Rollback()
 
-	err = DefaultDb().ExecInTx("select 'ok!'", tx)
+	err = Default().ExecInTx("select 'ok!'", tx)
 	a.Nil(err)
 }
 
-func TestIsolateToTransaction(t *testing.T) {
-	a := assert.New(t)
-
-	tx, err := DefaultDb().Begin()
-	a.Nil(err)
-	defer tx.Rollback()
-
-	DefaultDb().IsolateToTransaction(tx)
-	defer DefaultDb().ReleaseIsolation()
-	a.NotNil(DefaultDb().tx)
-	a.True(DefaultDb().IsIsolatedToTransaction())
-}
-
-func TestReleaseIsolation(t *testing.T) {
-	a := assert.New(t)
-
-	tx, err := DefaultDb().Begin()
-	a.Nil(err)
-	defer tx.Rollback()
-
-	DefaultDb().IsolateToTransaction(tx)
-	defer DefaultDb().ReleaseIsolation() //this has to happen regardless (panics etc.)
-
-	a.NotNil(DefaultDb().tx)
-	a.True(DefaultDb().IsIsolatedToTransaction())
-
-	DefaultDb().ReleaseIsolation()
-	a.Nil(DefaultDb().tx)
-	a.False(DefaultDb().IsIsolatedToTransaction())
-}
-
-func TestBeginReturnsIsolatedTransaction(t *testing.T) {
-	a := assert.New(t)
-
-	tx, err := DefaultDb().Begin()
-	a.Nil(err)
-	defer tx.Rollback()
-
-	DefaultDb().IsolateToTransaction(tx)
-	defer DefaultDb().ReleaseIsolation()
-
-	currentTx, err := DefaultDb().Begin()
-	a.Nil(err)
-	a.Equal(tx, currentTx)
-}
-
-func TestDbConnectionCreate(t *testing.T) {
+func TestConnectionCreate(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -277,11 +231,11 @@ func TestDbConnectionCreate(t *testing.T) {
 		Pending:   true,
 		Category:  fmt.Sprintf("category_%d", 0),
 	}
-	err = DefaultDb().CreateInTx(obj, tx)
+	err = Default().CreateInTx(obj, tx)
 	assert.Nil(err)
 }
 
-func TestDbConnectionCreateParallel(t *testing.T) {
+func TestConnectionCreateParallel(t *testing.T) {
 	assert := assert.New(t)
 
 	err := createTable(nil)
@@ -300,16 +254,16 @@ func TestDbConnectionCreateParallel(t *testing.T) {
 				Pending:   true,
 				Category:  fmt.Sprintf("category_%d", 0),
 			}
-			innerErr := DefaultDb().CreateInTx(obj, nil)
+			innerErr := Default().CreateInTx(obj, nil)
 			assert.Nil(innerErr)
 		}()
 	}
 	wg.Wait()
 }
 
-func TestDbConnectionUpsert(t *testing.T) {
+func TestConnectionUpsert(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -321,27 +275,27 @@ func TestDbConnectionUpsert(t *testing.T) {
 		Timestamp: time.Now().UTC(),
 		Category:  UUIDv4().ToShortString(),
 	}
-	err = DefaultDb().UpsertInTx(obj, tx)
+	err = Default().UpsertInTx(obj, tx)
 	assert.Nil(err)
 
 	var verify upsertObj
-	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	err = Default().GetByIDInTx(&verify, tx, obj.UUID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
 
 	obj.Category = "test"
 
-	err = DefaultDb().UpsertInTx(obj, tx)
+	err = Default().UpsertInTx(obj, tx)
 	assert.Nil(err)
 
-	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	err = Default().GetByIDInTx(&verify, tx, obj.UUID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
 }
 
-func TestDbConnectionUpsertWithSerial(t *testing.T) {
+func TestConnectionUpsertWithSerial(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -355,29 +309,29 @@ func TestDbConnectionUpsertWithSerial(t *testing.T) {
 		Pending:   true,
 		Category:  "category_0",
 	}
-	err = DefaultDb().UpsertInTx(obj, tx)
+	err = Default().UpsertInTx(obj, tx)
 	assert.Nil(err)
 	assert.NotZero(obj.ID)
 
 	var verify benchObj
-	err = DefaultDb().GetByIDInTx(&verify, tx, obj.ID)
+	err = Default().GetByIDInTx(&verify, tx, obj.ID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
 
 	obj.Category = "test"
 
-	err = DefaultDb().UpsertInTx(obj, tx)
+	err = Default().UpsertInTx(obj, tx)
 	assert.Nil(err)
 	assert.NotZero(obj.ID)
 
-	err = DefaultDb().GetByIDInTx(&verify, tx, obj.ID)
+	err = Default().GetByIDInTx(&verify, tx, obj.ID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
 }
 
-func TestDbConnectionCreateMany(t *testing.T) {
+func TestConnectionCreateMany(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -395,18 +349,18 @@ func TestDbConnectionCreateMany(t *testing.T) {
 		})
 	}
 
-	err = DefaultDb().CreateManyInTx(objects, tx)
+	err = Default().CreateManyInTx(objects, tx)
 	assert.Nil(err)
 
 	var verify []benchObj
-	err = DefaultDb().QueryInTx(`select * from bench_object`, tx).OutMany(&verify)
+	err = Default().QueryInTx(`select * from bench_object`, tx).OutMany(&verify)
 	assert.Nil(err)
 	assert.NotEmpty(verify)
 }
 
-func TestDbConnectionCreateIfNotExists(t *testing.T) {
+func TestConnectionCreateIfNotExists(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := DefaultDb().Begin()
+	tx, err := Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -418,29 +372,29 @@ func TestDbConnectionCreateIfNotExists(t *testing.T) {
 		Timestamp: time.Now().UTC(),
 		Category:  UUIDv4().ToShortString(),
 	}
-	err = DefaultDb().CreateIfNotExistsInTx(obj, tx)
+	err = Default().CreateIfNotExistsInTx(obj, tx)
 	assert.Nil(err)
 
 	var verify upsertObj
-	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	err = Default().GetByIDInTx(&verify, tx, obj.UUID)
 	assert.Nil(err)
 	assert.Equal(obj.Category, verify.Category)
 
 	oldCategory := obj.Category
 	obj.Category = "test"
 
-	err = DefaultDb().CreateIfNotExistsInTx(obj, tx)
+	err = Default().CreateIfNotExistsInTx(obj, tx)
 	assert.Nil(err)
 
-	err = DefaultDb().GetByIDInTx(&verify, tx, obj.UUID)
+	err = Default().GetByIDInTx(&verify, tx, obj.UUID)
 	assert.Nil(err)
 	assert.Equal(oldCategory, verify.Category)
 }
 
-func TestDbConnectionInvalidatesBadCachedStatements(t *testing.T) {
+func TestConnectionInvalidatesBadCachedStatements(t *testing.T) {
 	assert := assert.New(t)
 
-	conn := NewDbConnectionFromEnvironment()
+	conn := NewConnectionFromEnvironment()
 	defer conn.Close()
 
 	conn.EnableStatementCache()

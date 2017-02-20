@@ -74,17 +74,17 @@ func createTable() error {
 			"test_object",
 		),
 	)
-	return m.Apply(spiffy.DefaultDb())
+	return m.Apply(spiffy.Default())
 }
 
 func dropTable() error {
-	return spiffy.DefaultDb().Exec("DROP TABLE IF EXISTS test_object")
+	return spiffy.Default().Exec("DROP TABLE IF EXISTS test_object")
 }
 
 func seedObjects(count int) error {
 	var err error
 	for x := 0; x < count; x++ {
-		err = spiffy.DefaultDb().Create(newTestObject())
+		err = spiffy.Default().Create(newTestObject())
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func seedObjects(count int) error {
 	return nil
 }
 
-func baselineAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, error) {
+func baselineAccess(db *spiffy.Connection, queryLimit int) ([]testObject, error) {
 	var results []testObject
 	var err error
 
@@ -122,13 +122,13 @@ func baselineAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, erro
 	return results, nil
 }
 
-func spiffyAccess(db *spiffy.DbConnection, queryLimit int) ([]testObject, error) {
+func spiffyAccess(db *spiffy.Connection, queryLimit int) ([]testObject, error) {
 	var results []testObject
 	err := db.GetAll(&results)
 	return results, err
 }
 
-func benchHarness(db *spiffy.DbConnection, parallelism int, queryLimit int, accessFunc func(*spiffy.DbConnection, int) ([]testObject, error)) ([]time.Duration, error) {
+func benchHarness(db *spiffy.Connection, parallelism int, queryLimit int, accessFunc func(*spiffy.Connection, int) ([]testObject, error)) ([]time.Duration, error) {
 	var durations []time.Duration
 	var waitHandle = sync.WaitGroup{}
 	var errors = make(chan error, parallelism)
@@ -281,7 +281,7 @@ func main() {
 
 	// default db is used by the migration framework to build the test database
 	// it is not used by the benchmarks.
-	err := spiffy.SetDefaultDb(spiffy.NewDbConnectionFromEnvironment())
+	err := spiffy.InitDefault(spiffy.NewConnectionFromEnvironment())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -308,7 +308,7 @@ func main() {
 	fmt.Printf("PGX Elapsed: %v\n", time.Since(pgxStart))
 
 	// do spiffy query
-	uncached := spiffy.NewDbConnectionFromEnvironment()
+	uncached := spiffy.NewConnectionFromEnvironment()
 	uncached.DisableStatementCache()
 	_, err = uncached.Open()
 	if err != nil {
@@ -323,7 +323,7 @@ func main() {
 	fmt.Printf("Spiffy Elapsed: %v\n", time.Since(spiffyStart))
 
 	// do spiffy query
-	cached := spiffy.NewDbConnectionFromEnvironment()
+	cached := spiffy.NewConnectionFromEnvironment()
 	cached.EnableStatementCache()
 	_, err = cached.Open()
 	if err != nil {
@@ -339,7 +339,7 @@ func main() {
 
 	// do baseline query
 	baselineStart := time.Now()
-	baseline := spiffy.NewDbConnectionFromEnvironment()
+	baseline := spiffy.NewConnectionFromEnvironment()
 	_, err = baseline.Open()
 	if err != nil {
 		log.Fatal(err)

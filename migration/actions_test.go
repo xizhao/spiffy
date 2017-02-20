@@ -13,7 +13,7 @@ import (
 func createTestTable(tableName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE TABLE %s (id int, name varchar(32));", tableName)
 	step := Step(CreateTable, Body(body), tableName)
-	return step.Apply(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.Default(), tx)
 }
 
 func insertTestValue(tableName string, id int, name string, tx *sql.Tx) error {
@@ -24,30 +24,30 @@ func insertTestValue(tableName string, id int, name string, tx *sql.Tx) error {
 func createTestColumn(tableName, columnName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD %s varchar(32);", tableName, columnName)
 	step := Step(CreateColumn, Body(body), tableName, columnName)
-	return step.Apply(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.Default(), tx)
 }
 
 func createTestConstraint(tableName, constraintName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (name);", tableName, constraintName)
 	step := Step(CreateColumn, Body(body), tableName, constraintName)
-	return step.Apply(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.Default(), tx)
 }
 
 func createTestIndex(tableName, indexName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE INDEX %s ON %s (name);", indexName, tableName)
 	step := Step(CreateIndex, Body(body), tableName, indexName)
-	return step.Apply(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.Default(), tx)
 }
 
 func createTestRole(roleName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE ROLE %s;", roleName)
 	step := Step(CreateRole, Body(body), roleName)
-	return step.Apply(spiffy.DefaultDb(), tx)
+	return step.Apply(spiffy.Default(), tx)
 }
 
 func TestCreateTable(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := spiffy.DefaultDb().Begin()
+	tx, err := spiffy.Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -55,14 +55,14 @@ func TestCreateTable(t *testing.T) {
 	err = createTestTable(tableName, nil)
 	assert.Nil(err)
 
-	exists, err := tableExists(spiffy.DefaultDb(), nil, tableName)
+	exists, err := tableExists(spiffy.Default(), nil, tableName)
 	assert.Nil(err)
 	assert.True(exists, "table does not exist")
 }
 
 func TestCreateColumn(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := spiffy.DefaultDb().Begin()
+	tx, err := spiffy.Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -74,14 +74,14 @@ func TestCreateColumn(t *testing.T) {
 	err = createTestColumn(tableName, columnName, tx)
 	assert.Nil(err)
 
-	exists, err := columnExists(spiffy.DefaultDb(), tx, tableName, columnName)
+	exists, err := columnExists(spiffy.Default(), tx, tableName, columnName)
 	assert.Nil(err)
 	assert.True(exists, "column does not exist on table")
 }
 
 func TestCreateConstraint(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := spiffy.DefaultDb().Begin()
+	tx, err := spiffy.Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -93,14 +93,14 @@ func TestCreateConstraint(t *testing.T) {
 	err = createTestConstraint(tableName, constraintName, tx)
 	assert.Nil(err)
 
-	exists, err := constraintExists(spiffy.DefaultDb(), tx, constraintName)
+	exists, err := constraintExists(spiffy.Default(), tx, constraintName)
 	assert.Nil(err)
 	assert.True(exists, "constraint does not exist")
 }
 
 func TestCreateIndex(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := spiffy.DefaultDb().Begin()
+	tx, err := spiffy.Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -112,14 +112,14 @@ func TestCreateIndex(t *testing.T) {
 	err = createTestIndex(tableName, indexName, tx)
 	assert.Nil(err)
 
-	exists, err := indexExists(spiffy.DefaultDb(), tx, tableName, indexName)
+	exists, err := indexExists(spiffy.Default(), tx, tableName, indexName)
 	assert.Nil(err)
 	assert.True(exists, "constraint does not exist")
 }
 
 func TestCreateRole(t *testing.T) {
 	assert := assert.New(t)
-	tx, err := spiffy.DefaultDb().Begin()
+	tx, err := spiffy.Default().Begin()
 	assert.Nil(err)
 	defer tx.Rollback()
 
@@ -127,7 +127,7 @@ func TestCreateRole(t *testing.T) {
 	err = createTestRole(roleName, tx)
 	assert.Nil(err)
 
-	exists, err := roleExists(spiffy.DefaultDb(), tx, roleName)
+	exists, err := roleExists(spiffy.Default(), tx, roleName)
 	assert.Nil(err)
 	assert.True(exists, "role does not exist")
 }

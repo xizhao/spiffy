@@ -18,7 +18,7 @@ type QueryResult struct {
 	rows       *sql.Rows
 	queryBody  string
 	stmt       *sql.Stmt
-	conn       *DbConnection
+	conn       *Connection
 	label      string
 	fireEvents bool
 	err        error
@@ -41,10 +41,7 @@ func (q *QueryResult) Close() error {
 		}
 	}
 
-	//yes this is gross.
-	//release the tx lock on the connection for this query.
-	q.conn.tryTransactionUnlock()
-	return exception.WrapMany(rowsErr, stmtErr)
+	return exception.Nest(rowsErr, stmtErr)
 }
 
 // WithEvents enables or disables query event reporting for a query.
@@ -64,11 +61,11 @@ func (q *QueryResult) Any() (hasRows bool, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
-			err = exception.WrapMany(err, recoveryException)
+			err = exception.Nest(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+			err = exception.Nest(err, closeErr)
 		}
 
 		if q.fireEvents {
@@ -98,11 +95,11 @@ func (q *QueryResult) None() (hasRows bool, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
-			err = exception.WrapMany(err, recoveryException)
+			err = exception.Nest(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+			err = exception.Nest(err, closeErr)
 		}
 
 		if q.fireEvents {
@@ -132,11 +129,11 @@ func (q *QueryResult) Scan(args ...interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
-			err = exception.WrapMany(err, recoveryException)
+			err = exception.Nest(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+			err = exception.Nest(err, closeErr)
 		}
 
 		if q.fireEvents {
@@ -170,11 +167,11 @@ func (q *QueryResult) Out(object interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
-			err = exception.WrapMany(err, recoveryException)
+			err = exception.Nest(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+			err = exception.Nest(err, closeErr)
 		}
 
 		if q.fireEvents {
@@ -215,11 +212,11 @@ func (q *QueryResult) OutMany(collection interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
-			err = exception.WrapMany(err, recoveryException)
+			err = exception.Nest(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+			err = exception.Nest(err, closeErr)
 		}
 
 		if q.fireEvents {
@@ -283,11 +280,11 @@ func (q *QueryResult) Each(consumer RowsConsumer) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoveryException := exception.New(r)
-			err = exception.WrapMany(err, recoveryException)
+			err = exception.Nest(err, recoveryException)
 		}
 
 		if closeErr := q.Close(); closeErr != nil {
-			err = exception.WrapMany(err, closeErr)
+			err = exception.Nest(err, closeErr)
 		}
 
 		if q.fireEvents {
