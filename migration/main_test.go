@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"log"
 	"os"
 	"testing"
 
@@ -9,9 +10,12 @@ import (
 
 // TestMain is the testing entrypoint.
 func TestMain(m *testing.M) {
-	config := spiffy.NewDbConnectionFromEnvironment()
-	spiffy.CreateDbAlias("main", config)
-	spiffy.SetDefaultAlias("main")
+	connection := spiffy.NewConnectionFromEnvironment()
+
+	err := spiffy.InitDefault(connection)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	os.Exit(m.Run())
 }
