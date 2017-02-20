@@ -268,6 +268,14 @@ func (dbc *Connection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) 
 
 // PrepareCached prepares a potentially cached statement.
 func (dbc *Connection) PrepareCached(id, statement string, tx *sql.Tx) (*sql.Stmt, error) {
+	if tx != nil {
+		stmt, err := tx.Prepare(statement)
+		if err != nil {
+			return nil, exception.Wrap(err)
+		}
+		return stmt, nil
+	}
+
 	if dbc.useStatementCache {
 		// open shared connection
 		dbConn, err := dbc.Open()
