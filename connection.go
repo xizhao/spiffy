@@ -278,14 +278,14 @@ func (dbc *Connection) PrepareCached(id, statement string, tx *sql.Tx) (*sql.Stm
 
 	if dbc.useStatementCache {
 		// open shared connection
-		dbConn, err := dbc.Open()
-		if err != nil {
-			return nil, exception.Wrap(err)
-		}
 		if dbc.statementCache == nil {
 			dbc.statementCacheLock.Lock()
 			defer dbc.statementCacheLock.Unlock()
 			if dbc.statementCache == nil {
+				dbConn, err := dbc.Open()
+				if err != nil {
+					return nil, exception.Wrap(err)
+				}
 				dbc.statementCache = newStatementCache(dbConn)
 			}
 		}
