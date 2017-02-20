@@ -256,7 +256,7 @@ func (dbc *Connection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) 
 	if tx != nil {
 		stmt, err := tx.Prepare(statement)
 		if err != nil {
-			return nil, exception.Newf("Postgres Error: %v", err)
+			return nil, exception.Wrap(err)
 		}
 		return stmt, nil
 	}
@@ -264,10 +264,24 @@ func (dbc *Connection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) 
 	// open shared connection
 	dbConn, err := dbc.Open()
 	if err != nil {
-		return nil, exception.Newf("Postgres Error: %v", err)
+		return nil, exception.Wrap(err)
 	}
 
+	stmt, err := dbConn.Prepare(statement)
+	if err != nil {
+		return nil, exception.Wrap(err)
+	}
+	return stmt, nil
+}
+
+// PrepareCached prepares a potentially cached statement.
+func (dbc *Connection) PrepareCached(id, statement string, tx *sql.Tx) (*sql.Stmt, error) {
 	if dbc.useStatementCache {
+		// open shared connection
+		dbConn, err := dbc.Open()
+		if err != nil {
+			return nil, exception.Wrap(err)
+		}
 		if dbc.statementCache == nil {
 			dbc.statementCacheInitLock.Lock()
 			defer dbc.statementCacheInitLock.Unlock()
@@ -275,18 +289,13 @@ func (dbc *Connection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) 
 				dbc.statementCache = newStatementCache(dbConn)
 			}
 		}
-		return dbc.statementCache.Prepare(statement)
+		return dbc.statementCache.Prepare(id, statement)
 	}
-
-	stmt, err := dbConn.Prepare(statement)
-	if err != nil {
-		return nil, exception.Newf("Postgres Error: %v", err)
-	}
-	return stmt, nil
+	return dbc.Prepare(statement, tx)
 }
 
-// OpenNew returns a new connection object.
-func (dbc *Connection) OpenNew() (*sql.DB, error) {
+// openNew returns a new connection object.
+func (dbc *Connection) openNew() (*sql.DB, error) {
 	connStr, err := dbc.CreatePostgresConnectionString()
 	if err != nil {
 		return nil, err
@@ -314,7 +323,7 @@ func (dbc *Connection) Open() (*sql.DB, error) {
 		defer dbc.connectionLock.Unlock()
 
 		if dbc.Connection == nil {
-			newConn, err := dbc.OpenNew()
+			newConn, err := dbc.openNew()
 			if err != nil {
 				return nil, exception.Wrap(err)
 			}
@@ -350,11 +359,9 @@ func (dbc *Connection) ExecInTx(statement string, tx *sql.Tx, args ...interface{
 		return
 	}
 	defer func() {
-		if !dbc.useStatementCache {
-			closeErr := stmt.Close()
-			if closeErr != nil {
-				err = exception.Nest(err, closeErr)
-			}
+		closeErr := stmt.Close()
+		if closeErr != nil {
+			err = exception.Nest(err, closeErr)
 		}
 	}()
 
@@ -439,51 +446,57 @@ func (dbc *Connection) GetByIDInTx(object DatabaseMapped, tx *sql.Tx, ids ...int
 
 	meta := getCachedColumnCollectionFromInstance(object)
 	standardCols := meta.NotReadOnly()
-	columnNames := standardCols.ColumnNames()
 	tableName := object.TableName()
-	pks := standardCols.PrimaryKeys()
 
-	if pks.Len() == 0 {
-		err = exception.New("no primary key on object to get by.")
-		return
-	}
+	statementID := fmt.Sprintf("%s_get", tableName)
 
-	queryBodyBuffer := dbc.bufferPool.Get()
-	defer dbc.bufferPool.Put(queryBodyBuffer)
-
-	queryBodyBuffer.WriteString("SELECT ")
-	for i, name := range columnNames {
-		queryBodyBuffer.WriteString(name)
-		if i < (len(columnNames) - 1) {
-			queryBodyBuffer.WriteRune(runeComma)
+	var stmt *sql.Stmt
+	var stmtErr error
+	if dbc.useStatementCache {
+		stmt = dbc.statementCache.getCachedStatement(statementID)
+	} else {
+		columnNames := standardCols.ColumnNames()
+		pks := standardCols.PrimaryKeys()
+		if pks.Len() == 0 {
+			err = exception.New("no primary key on object to get by.")
+			return
 		}
-	}
 
-	queryBodyBuffer.WriteString(" FROM ")
-	queryBodyBuffer.WriteString(tableName)
-	queryBodyBuffer.WriteString(" WHERE ")
+		queryBodyBuffer := dbc.bufferPool.Get()
+		defer dbc.bufferPool.Put(queryBodyBuffer)
 
-	for i, pk := range pks.Columns() {
-		queryBodyBuffer.WriteString(pk.ColumnName)
-		queryBodyBuffer.WriteString(" = ")
-		queryBodyBuffer.WriteString("$" + strconv.Itoa(i+1))
-
-		if i < (pks.Len() - 1) {
-			queryBodyBuffer.WriteString(" AND ")
+		queryBodyBuffer.WriteString("SELECT ")
+		for i, name := range columnNames {
+			queryBodyBuffer.WriteString(name)
+			if i < (len(columnNames) - 1) {
+				queryBodyBuffer.WriteRune(runeComma)
+			}
 		}
-	}
 
-	queryBody = queryBodyBuffer.String()
-	stmt, stmtErr := dbc.Prepare(queryBody, tx)
-	if stmtErr != nil {
-		err = exception.Wrap(stmtErr)
-		return
-	}
-	defer func() {
-		if !dbc.useStatementCache {
+		queryBodyBuffer.WriteString(" FROM ")
+		queryBodyBuffer.WriteString(tableName)
+		queryBodyBuffer.WriteString(" WHERE ")
+
+		for i, pk := range pks.Columns() {
+			queryBodyBuffer.WriteString(pk.ColumnName)
+			queryBodyBuffer.WriteString(" = ")
+			queryBodyBuffer.WriteString("$" + strconv.Itoa(i+1))
+
+			if i < (pks.Len() - 1) {
+				queryBodyBuffer.WriteString(" AND ")
+			}
+		}
+
+		queryBody = queryBodyBuffer.String()
+		stmt, stmtErr = dbc.Prepare(queryBody, tx)
+		if stmtErr != nil {
+			err = exception.Wrap(stmtErr)
+			return
+		}
+		defer func() {
 			err = exception.Nest(err, stmt.Close())
-		}
-	}()
+		}()
+	}
 
 	rows, queryErr := stmt.Query(ids...)
 	if queryErr != nil {

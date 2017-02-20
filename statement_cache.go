@@ -47,39 +47,39 @@ func (sc *StatementCache) Clear() error {
 }
 
 // HasStatement returns if the cache contains a statement.
-func (sc *StatementCache) HasStatement(statement string) bool {
-	return sc.getCachedStatement(statement) != nil
+func (sc *StatementCache) HasStatement(statementID string) bool {
+	return sc.getCachedStatement(statementID) != nil
 }
 
 // InvalidateStatement removes a statement from the cache.
-func (sc *StatementCache) InvalidateStatement(statement string) {
+func (sc *StatementCache) InvalidateStatement(statementID string) {
 	sc.cacheLock.Lock()
 	defer sc.cacheLock.Unlock()
 
-	if _, hasStatement := sc.cache[statement]; hasStatement {
-		delete(sc.cache, statement)
+	if _, hasStatement := sc.cache[statementID]; hasStatement {
+		delete(sc.cache, statementID)
 	}
 }
 
-func (sc *StatementCache) getCachedStatement(statement string) *sql.Stmt {
+func (sc *StatementCache) getCachedStatement(statementID string) *sql.Stmt {
 	sc.cacheLock.RLock()
 	defer sc.cacheLock.RUnlock()
-	if stmt, hasStmt := sc.cache[statement]; hasStmt {
+	if stmt, hasStmt := sc.cache[statementID]; hasStmt {
 		return stmt
 	}
 	return nil
 }
 
 // Prepare returns a cached expression for a statement, or creates and caches a new one.
-func (sc *StatementCache) Prepare(statement string) (*sql.Stmt, error) {
-	cached := sc.getCachedStatement(statement)
+func (sc *StatementCache) Prepare(id, statement string) (*sql.Stmt, error) {
+	cached := sc.getCachedStatement(id)
 	if cached != nil {
 		return cached, nil
 	}
 
 	sc.cacheLock.Lock()
 	defer sc.cacheLock.Unlock()
-	if stmt, hasStmt := sc.cache[statement]; hasStmt {
+	if stmt, hasStmt := sc.cache[id]; hasStmt {
 		return stmt, nil
 	}
 
@@ -88,6 +88,6 @@ func (sc *StatementCache) Prepare(statement string) (*sql.Stmt, error) {
 		return nil, err
 	}
 
-	sc.cache[statement] = stmt
+	sc.cache[id] = stmt
 	return stmt, nil
 }
