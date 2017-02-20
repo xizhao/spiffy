@@ -75,35 +75,20 @@ func getCachedColumnCollectionFromInstance(object interface{}) *ColumnCollection
 	return getCachedColumnCollectionFromType(newColumnCacheKey(objectType), objectType)
 }
 
-func initMetaCache() {
+// getCachedColumnCollectionFromType reflects a reflect.Type into a column collection.
+// The results of this are cached for speed.
+func getCachedColumnCollectionFromType(identifier string, t reflect.Type) *ColumnCollection {
 	metaCacheLock.Lock()
 	defer metaCacheLock.Unlock()
 
 	if metaCache == nil {
 		metaCache = map[string]*ColumnCollection{}
 	}
-}
 
-func addMetaCacheEntry(identifier string, t reflect.Type) *ColumnCollection {
-	metaCacheLock.Lock()
-	defer metaCacheLock.Unlock()
 	if _, ok := metaCache[identifier]; !ok {
 		metadata := generateColumnCollectionForType(t)
 		metaCache[identifier] = metadata
 		return metadata
-	}
-	return metaCache[identifier]
-}
-
-// getCachedColumnCollectionFromType reflects a reflect.Type into a column collection.
-// The results of this are cached for speed.
-func getCachedColumnCollectionFromType(identifier string, t reflect.Type) *ColumnCollection {
-	if metaCache == nil {
-		initMetaCache()
-	}
-
-	if _, ok := metaCache[identifier]; !ok {
-		return addMetaCacheEntry(identifier, t)
 	}
 	return metaCache[identifier]
 }
