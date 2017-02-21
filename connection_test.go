@@ -195,6 +195,64 @@ func TestCRUDMethods(t *testing.T) {
 	a.Nil(delVerifyErr)
 }
 
+func TestCRUDMethodsCached(t *testing.T) {
+	a := assert.New(t)
+
+	conn := NewConnectionFromEnvironment()
+	defer func() {
+		err := conn.Close()
+		a.Nil(err)
+	}()
+
+	conn.EnableStatementCache()
+
+	tx, err := conn.Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	seedErr := seedObjects(100, tx)
+	a.Nil(seedErr)
+
+	objs := []benchObj{}
+	queryErr := Default().QueryInTx("select * from bench_object", tx).OutMany(&objs)
+
+	a.Nil(queryErr)
+	a.NotEmpty(objs)
+
+	all := []benchObj{}
+	allErr := Default().GetAllInTx(&all, tx)
+	a.Nil(allErr)
+	a.Equal(len(objs), len(all))
+
+	sampleObj := all[0]
+
+	getTest := benchObj{}
+	getTestErr := Default().GetByIDInTx(&getTest, tx, sampleObj.ID)
+	a.Nil(getTestErr)
+	a.Equal(sampleObj.ID, getTest.ID)
+
+	exists, existsErr := Default().ExistsInTx(&getTest, tx)
+	a.Nil(existsErr)
+	a.True(exists)
+
+	getTest.Name = "not_a_test_object"
+
+	updateErr := Default().UpdateInTx(&getTest, tx)
+	a.Nil(updateErr)
+
+	verify := benchObj{}
+	verifyErr := Default().GetByIDInTx(&verify, tx, getTest.ID)
+	a.Nil(verifyErr)
+	a.Equal(getTest.Name, verify.Name)
+
+	deleteErr := Default().DeleteInTx(&verify, tx)
+	a.Nil(deleteErr)
+
+	delVerify := benchObj{}
+	delVerifyErr := Default().GetByIDInTx(&delVerify, tx, getTest.ID)
+	a.Nil(delVerifyErr)
+}
+
 func TestConnectionOpen(t *testing.T) {
 	a := assert.New(t)
 
