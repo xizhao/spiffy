@@ -135,15 +135,15 @@ func TestConnectionStatementCacheQuery(t *testing.T) {
 	a.Nil(err)
 
 	var ok string
-	err = conn.Query("select 'ok!'").Scan(&ok)
+	err = conn.Query("select 'ok!'").WithLabel("status").Scan(&ok)
 	a.Nil(err)
 	a.Equal("ok!", ok)
 
-	err = conn.Query("select 'ok!'").Scan(&ok)
+	err = conn.Query("select 'ok!'").WithLabel("status").Scan(&ok)
 	a.Nil(err)
 	a.Equal("ok!", ok)
 
-	a.True(conn.StatementCache().HasStatement("select 'ok!'"))
+	a.True(conn.StatementCache().HasStatement("status"))
 }
 
 func TestCRUDMethods(t *testing.T) {
@@ -485,8 +485,10 @@ func TestConnectionInvalidatesBadCachedStatements(t *testing.T) {
 	err = conn.Exec(alterTableStatement)
 	assert.Nil(err)
 
+	// normally this would result in a busted cached query plan.
+	// we need to invalidate the cache and make this work.
 	_, err = conn.Query(queryStatement).Any()
-	assert.NotNil(err)
+	assert.Nil(err)
 
 	_, err = conn.Query(queryStatement).Any()
 	assert.Nil(err)

@@ -374,46 +374,14 @@ func (dbc *Connection) ExecInTx(statement string, tx *sql.Tx, args ...interface{
 	return
 }
 
-// Query runs the selected statement and returns a QueryResult.
-func (dbc *Connection) Query(statement string, args ...interface{}) *QueryResult {
+// Query runs the selected statement and returns a Query.
+func (dbc *Connection) Query(statement string, args ...interface{}) *Query {
 	return dbc.QueryInTx(statement, nil, args...)
 }
 
-// QueryInTx runs the selected statement in a transaction and returns a QueryResult.
-func (dbc *Connection) QueryInTx(statement string, tx *sql.Tx, args ...interface{}) (result *QueryResult) {
-	result = &QueryResult{queryBody: statement, start: time.Now(), conn: dbc, fireEvents: true}
-
-	stmt, stmtErr := dbc.PrepareCached(statement, statement, tx)
-	if stmtErr != nil {
-		if dbc.useStatementCache {
-			dbc.statementCache.InvalidateStatement(statement)
-		}
-		result.err = exception.Wrap(stmtErr)
-		return
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			if dbc.useStatementCache {
-				result.err = exception.Nest(result.err, exception.New(r))
-			} else {
-				result.err = exception.Nest(result.err, exception.New(r), stmt.Close())
-			}
-		}
-	}()
-
-	rows, queryErr := stmt.Query(args...)
-	if queryErr != nil {
-		if dbc.useStatementCache {
-			dbc.statementCache.InvalidateStatement(statement)
-		}
-		result.err = exception.Wrap(queryErr)
-		return
-	}
-
-	// the result MUST close these.
-	result.stmt = stmt
-	result.rows = rows
-	return
+// QueryInTx runs the selected statement in a transaction and returns a Query.
+func (dbc *Connection) QueryInTx(statement string, tx *sql.Tx, args ...interface{}) (result *Query) {
+	return &Query{statement: statement, args: args, start: time.Now(), dbc: dbc, tx: tx, fireEvents: true}
 }
 
 // GetByID returns a given object based on a group of primary key ids.
