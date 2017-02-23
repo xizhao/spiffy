@@ -52,8 +52,11 @@ func (q *Query) WithEvents(enabled bool) *Query {
 	return q
 }
 
-// WithLabel assigns a label to a query (for event filtering).
-func (q *Query) WithLabel(label string) *Query {
+// CachedAs assigns a label to a query.
+// It is the key that the statement is cached with, if
+// the connection is configured with .EnableStatementCache().
+// This label can also be used for event filtering.
+func (q *Query) CachedAs(label string) *Query {
 	q.label = label
 	return q
 }

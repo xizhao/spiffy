@@ -135,11 +135,11 @@ func TestConnectionStatementCacheQuery(t *testing.T) {
 	a.Nil(err)
 
 	var ok string
-	err = conn.Query("select 'ok!'").WithLabel("status").Scan(&ok)
+	err = conn.Query("select 'ok!'").CachedAs("status").Scan(&ok)
 	a.Nil(err)
 	a.Equal("ok!", ok)
 
-	err = conn.Query("select 'ok!'").WithLabel("status").Scan(&ok)
+	err = conn.Query("select 'ok!'").CachedAs("status").Scan(&ok)
 	a.Nil(err)
 	a.Equal("ok!", ok)
 
