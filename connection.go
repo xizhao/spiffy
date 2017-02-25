@@ -144,8 +144,8 @@ type Connection struct {
 	connectionLock         *sync.Mutex
 	statementCacheInitLock *sync.Mutex
 
-	bufferPool  *BufferPool
-	diagnostics *logger.DiagnosticsAgent
+	bufferPool *BufferPool
+	logger     *logger.Agent
 
 	useStatementCache bool
 	statementCache    *StatementCache
@@ -163,24 +163,24 @@ func (dbc *Connection) Close() error {
 	return dbc.Connection.Close()
 }
 
-// SetDiagnostics sets the connection's diagnostic agent.
-func (dbc *Connection) SetDiagnostics(agent *logger.DiagnosticsAgent) {
-	dbc.diagnostics = agent
+// SetLogger sets the connection's diagnostic agent.
+func (dbc *Connection) SetLogger(agent *logger.Agent) {
+	dbc.logger = agent
 }
 
-// Diagnostics returns the diagnostics agent.
-func (dbc *Connection) Diagnostics() *logger.DiagnosticsAgent {
-	return dbc.diagnostics
+// Logger returns the diagnostics agent.
+func (dbc *Connection) Logger() *logger.Agent {
+	return dbc.logger
 }
 
 func (dbc *Connection) fireEvent(flag logger.EventFlag, query string, elapsed time.Duration, err error, optionalQueryLabel ...string) {
-	if dbc.diagnostics != nil {
+	if dbc.logger != nil {
 		var queryLabel string
 		if len(optionalQueryLabel) > 0 {
 			queryLabel = optionalQueryLabel[0]
 		}
 
-		dbc.diagnostics.OnEvent(flag, query, elapsed, err, queryLabel)
+		dbc.logger.OnEvent(flag, query, elapsed, err, queryLabel)
 	}
 }
 
