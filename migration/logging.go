@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	logger "github.com/blendlabs/go-logger"
-	"github.com/blendlabs/go-util"
 )
 
 const (
@@ -64,10 +63,13 @@ func (l *Logger) Errorf(m Migration, err error) error {
 
 // WriteStats writes final stats to output
 func (l *Logger) WriteStats() {
-	l.Output.Writer().Printf("\n\t%s applied %s skipped %s failed\n\n",
-		l.Output.Writer().Colorize(util.String.IntToString(l.applied), logger.ColorGreen),
-		l.Output.Writer().Colorize(util.String.IntToString(l.skipped), logger.ColorLightGreen),
-		l.Output.Writer().Colorize(util.String.IntToString(l.failed), logger.ColorRed),
+	l.Output.Eventf(
+		EventFlagMigration,
+		logger.ColorWhite,
+		"%s applied %s skipped %s failed",
+		l.colorize(fmt.Sprintf("%d", l.applied), logger.ColorGreen),
+		l.colorize(fmt.Sprintf("%d", l.skipped), logger.ColorLightGreen),
+		l.colorize(fmt.Sprintf("%d", l.failed), logger.ColorRed),
 	)
 }
 
@@ -96,8 +98,8 @@ func (l *Logger) write(m Migration, color logger.AnsiColorCode, body string) {
 
 	l.Output.Eventf(
 		EventFlagMigration,
-		"%[1]s %[2]s %[3]s %[4]s %[5]s %[6]s %[7]s",
-		l.colorize("migrate", logger.ColorBlue),                       //1
+		logger.ColorWhite,
+		"%s %s %s %s %s %s",
 		l.colorizeFixedWidthLeftAligned(l.Phase, logger.ColorBlue, 5), //2
 		l.colorize("--", logger.ColorLightBlack),                      //3
 		l.colorizeFixedWidthLeftAligned(l.Result, resultColor, 5),     //4
