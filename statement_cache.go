@@ -54,24 +54,25 @@ func (sc *StatementCache) HasStatement(statementID string) bool {
 // InvalidateStatement removes a statement from the cache.
 func (sc *StatementCache) InvalidateStatement(statementID string) {
 	sc.cacheLock.Lock()
-	defer sc.cacheLock.Unlock()
-
 	if _, hasStatement := sc.cache[statementID]; hasStatement {
 		delete(sc.cache, statementID)
 	}
+	sc.cacheLock.Unlock()
 }
 
 func (sc *StatementCache) getCachedStatement(statementID string) *sql.Stmt {
 	sc.cacheLock.RLock()
-	defer sc.cacheLock.RUnlock()
+
 	if stmt, hasStmt := sc.cache[statementID]; hasStmt {
+		sc.cacheLock.RUnlock()
 		return stmt
 	}
+	sc.cacheLock.RUnlock()
 	return nil
 }
 
 // Prepare returns a cached expression for a statement, or creates and caches a new one.
-func (sc *StatementCache) Prepare(id, statement string) (*sql.Stmt, error) {
+func (sc *StatementCache) Prepare(id, statementProvider string) (*sql.Stmt, error) {
 	cached := sc.getCachedStatement(id)
 	if cached != nil {
 		return cached, nil
@@ -83,7 +84,7 @@ func (sc *StatementCache) Prepare(id, statement string) (*sql.Stmt, error) {
 		return stmt, nil
 	}
 
-	stmt, err := sc.dbc.Prepare(statement)
+	stmt, err := sc.dbc.Prepare(statementProvider)
 	if err != nil {
 		return nil, err
 	}

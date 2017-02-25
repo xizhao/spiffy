@@ -8,7 +8,21 @@ import (
 	"github.com/blendlabs/go-assert"
 )
 
-func TestQueryResultEach(t *testing.T) {
+func TestQueryExecute(t *testing.T) {
+	a := assert.New(t)
+	tx, err := Default().Begin()
+	a.Nil(err)
+	defer tx.Rollback()
+
+	stmt, rows, err := Default().QueryInTx("select * from bench_object", tx).Execute()
+	a.Nil(err)
+	defer stmt.Close()
+	defer rows.Close()
+	a.NotNil(rows)
+	a.NotNil(stmt)
+}
+
+func TestQueryEach(t *testing.T) {
 	a := assert.New(t)
 	tx, err := Default().Begin()
 	a.Nil(err)
@@ -32,7 +46,7 @@ func TestQueryResultEach(t *testing.T) {
 	a.NotEmpty(all)
 }
 
-func TestQueryResultAny(t *testing.T) {
+func TestQueryAny(t *testing.T) {
 	a := assert.New(t)
 	tx, err := Default().Begin()
 	a.Nil(err)
@@ -57,7 +71,7 @@ func TestQueryResultAny(t *testing.T) {
 	a.False(notExists)
 }
 
-func TestQueryResultNone(t *testing.T) {
+func TestQueryNone(t *testing.T) {
 	a := assert.New(t)
 	tx, err := Default().Begin()
 	a.Nil(err)
@@ -82,7 +96,7 @@ func TestQueryResultNone(t *testing.T) {
 	a.True(notExists)
 }
 
-func TestQueryResultPanicHandling(t *testing.T) {
+func TestQueryPanicHandling(t *testing.T) {
 	a := assert.New(t)
 	tx, err := Default().Begin()
 	a.Nil(err)

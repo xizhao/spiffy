@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	err := spiffy.SetDefaultDb(spiffy.NewDbConnectionFromEnvironment())
+	err := spiffy.InitDefault(spiffy.NewConnectionFromEnvironment())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func main() {
 	)
 	m.SetLogger(migration.NewLogger())
 	m.SetShouldAbortOnError(true)
-	err = m.Apply(spiffy.DefaultDb())
+	err = m.Apply(spiffy.DB())
 	if err != nil {
 		log.Fatal(err)
 	}
