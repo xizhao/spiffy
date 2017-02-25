@@ -96,14 +96,14 @@ func (l *Logger) write(m Migration, color logger.AnsiColorCode, body string) {
 
 	l.Output.Eventf(
 		EventFlagMigration,
-		"%s%s %s %s %s %s %s %s",
-		l.colorize("migrate", logger.ColorBlue),
-		l.colorizeFixedWidthLeftAligned(l.Phase, logger.ColorBlue, 5),
-		l.colorize("--", logger.ColorLightBlack),
-		l.colorizeFixedWidthLeftAligned(l.Result, resultColor, 5),
-		l.renderStack(m, color),
-		l.colorize("--", logger.ColorLightBlack),
-		body,
+		"%[1]s %[2]s %[3]s %[4]s %[5]s %[6]s %[7]s",
+		l.colorize("migrate", logger.ColorBlue),                       //1
+		l.colorizeFixedWidthLeftAligned(l.Phase, logger.ColorBlue, 5), //2
+		l.colorize("--", logger.ColorLightBlack),                      //3
+		l.colorizeFixedWidthLeftAligned(l.Result, resultColor, 5),     //4
+		l.renderStack(m, color),                                       //5
+		l.colorize("--", logger.ColorLightBlack),                      //6
+		body, //7
 	)
 }
 
