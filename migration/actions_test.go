@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/blendlabs/go-assert"
-	"github.com/blendlabs/go-util"
 	"github.com/blendlabs/spiffy"
 )
 
@@ -51,7 +50,7 @@ func TestCreateTable(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.String.RandomString(12)
+	tableName := spiffy.UUIDv4().ToShortString()
 	err = createTestTable(tableName, nil)
 	assert.Nil(err)
 
@@ -66,11 +65,11 @@ func TestCreateColumn(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.String.RandomString(12)
+	tableName := spiffy.UUIDv4().ToShortString()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	columnName := util.String.RandomString(12)
+	columnName := spiffy.UUIDv4().ToShortString()
 	err = createTestColumn(tableName, columnName, tx)
 	assert.Nil(err)
 
@@ -85,11 +84,11 @@ func TestCreateConstraint(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.String.RandomString(12)
+	tableName := spiffy.UUIDv4().ToShortString()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	constraintName := fmt.Sprintf("uk_%s_%s", tableName, util.String.RandomString(12))
+	constraintName := fmt.Sprintf("uk_%s_%s", tableName, spiffy.UUIDv4().ToShortString())
 	err = createTestConstraint(tableName, constraintName, tx)
 	assert.Nil(err)
 
@@ -104,11 +103,11 @@ func TestCreateIndex(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.String.RandomString(12)
+	tableName := spiffy.UUIDv4().ToShortString()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	indexName := fmt.Sprintf("ix_%s_%s", tableName, util.String.RandomString(12))
+	indexName := fmt.Sprintf("ix_%s_%s", tableName, spiffy.UUIDv4().ToShortString())
 	err = createTestIndex(tableName, indexName, tx)
 	assert.Nil(err)
 
@@ -123,7 +122,7 @@ func TestCreateRole(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	roleName := util.String.RandomString(32)
+	roleName := spiffy.UUIDv4().ToShortString()
 	err = createTestRole(roleName, tx)
 	assert.Nil(err)
 
@@ -138,7 +137,7 @@ func TestNotExists(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := util.String.RandomString(12)
+	tableName := spiffy.UUIDv4().ToShortString()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
