@@ -3,11 +3,26 @@ package migration
 import (
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/blendlabs/go-assert"
 	"github.com/blendlabs/spiffy"
 )
+
+var (
+	// lowerLetters is a runset of lowercase letters.
+	lowerLetters = []rune("abcdefghijklmnopqrstuvwxyz")
+)
+
+func randomName() string {
+	runes := make([]rune, 12)
+	letterCount := len(lowerLetters)
+	for index := range runes {
+		runes[index] = lowerLetters[rand.Intn(letterCount)]
+	}
+	return string(runes)
+}
 
 func createTestTable(tableName string, tx *sql.Tx) error {
 	body := fmt.Sprintf("CREATE TABLE %s (id int, name varchar(32));", tableName)
@@ -50,7 +65,7 @@ func TestCreateTable(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := spiffy.UUIDv4().ToShortString()
+	tableName := randomName()
 	err = createTestTable(tableName, nil)
 	assert.Nil(err)
 
@@ -65,11 +80,11 @@ func TestCreateColumn(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := spiffy.UUIDv4().ToShortString()
+	tableName := randomName()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	columnName := spiffy.UUIDv4().ToShortString()
+	columnName := randomName()
 	err = createTestColumn(tableName, columnName, tx)
 	assert.Nil(err)
 
@@ -84,11 +99,11 @@ func TestCreateConstraint(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := spiffy.UUIDv4().ToShortString()
+	tableName := randomName()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	constraintName := fmt.Sprintf("uk_%s_%s", tableName, spiffy.UUIDv4().ToShortString())
+	constraintName := fmt.Sprintf("uk_%s_%s", tableName, randomName())
 	err = createTestConstraint(tableName, constraintName, tx)
 	assert.Nil(err)
 
@@ -103,11 +118,11 @@ func TestCreateIndex(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := spiffy.UUIDv4().ToShortString()
+	tableName := randomName()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
-	indexName := fmt.Sprintf("ix_%s_%s", tableName, spiffy.UUIDv4().ToShortString())
+	indexName := fmt.Sprintf("ix_%s_%s", tableName, randomName())
 	err = createTestIndex(tableName, indexName, tx)
 	assert.Nil(err)
 
@@ -122,7 +137,7 @@ func TestCreateRole(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	roleName := spiffy.UUIDv4().ToShortString()
+	roleName := randomName()
 	err = createTestRole(roleName, tx)
 	assert.Nil(err)
 
@@ -137,7 +152,7 @@ func TestNotExists(t *testing.T) {
 	assert.Nil(err)
 	defer tx.Rollback()
 
-	tableName := spiffy.UUIDv4().ToShortString()
+	tableName := randomName()
 	err = createTestTable(tableName, tx)
 	assert.Nil(err)
 
