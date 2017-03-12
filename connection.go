@@ -356,7 +356,7 @@ func (dbc *Connection) ExecInTxWithCacheLabel(statement, cacheLabel string, tx *
 			recoveryException := exception.New(r)
 			err = exception.Nest(err, recoveryException)
 		}
-		dbc.fireEvent(EventFlagExecute, statement, time.Now().Sub(start), err)
+		dbc.fireEvent(EventFlagExecute, statement, time.Now().Sub(start), err, cacheLabel)
 	}()
 
 	stmt, stmtErr := dbc.PrepareCached(cacheLabel, statement, tx)
