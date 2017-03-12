@@ -338,8 +338,18 @@ func (dbc *Connection) Exec(statement string, args ...interface{}) error {
 	return dbc.ExecInTx(statement, nil, args...)
 }
 
+// ExecWithCacheLabel runs the statement without creating a QueryResult.
+func (dbc *Connection) ExecWithCacheLabel(statement, cacheLabel string, args ...interface{}) error {
+	return dbc.ExecInTxWithCacheLabel(statement, cacheLabel, nil, args...)
+}
+
 // ExecInTx runs a statement within a transaction.
 func (dbc *Connection) ExecInTx(statement string, tx *sql.Tx, args ...interface{}) (err error) {
+	return dbc.ExecInTxWithCacheLabel(statement, statement, tx, args...)
+}
+
+// ExecInTxWithCacheLabel runs a statement within a transaction.
+func (dbc *Connection) ExecInTxWithCacheLabel(statement, cacheLabel string, tx *sql.Tx, args ...interface{}) (err error) {
 	start := time.Now()
 	defer func() {
 		if r := recover(); r != nil {
@@ -349,7 +359,7 @@ func (dbc *Connection) ExecInTx(statement string, tx *sql.Tx, args ...interface{
 		dbc.fireEvent(EventFlagExecute, statement, time.Now().Sub(start), err)
 	}()
 
-	stmt, stmtErr := dbc.PrepareCached(statement, statement, tx)
+	stmt, stmtErr := dbc.PrepareCached(cacheLabel, statement, tx)
 	if stmtErr != nil {
 		err = exception.Wrap(stmtErr)
 		return
