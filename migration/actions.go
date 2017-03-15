@@ -234,7 +234,5 @@ func notExists(c *spiffy.Connection, tx *sql.Tx, selectStatement string) (bool, 
 	if !spiffy.HasPrefixCaseInsensitive(selectStatement, "select") {
 		return false, fmt.Errorf("statement must be a `SELECT`")
 	}
-	none, err := c.QueryInTx(selectStatement, tx).None()
-	fmt.Printf("notExists none: %v err: %v\n", none, err)
-	return none, err
+	return c.QueryInTx(selectStatement, tx).None()
 }
