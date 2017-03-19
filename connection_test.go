@@ -109,7 +109,7 @@ func TestConnectionStatementCacheExecute(t *testing.T) {
 	}()
 
 	conn.EnableStatementCache()
-	_, err := conn.Open()
+	_, err := conn.open()
 	a.Nil(err)
 
 	err = conn.Exec("select 'ok!'")
@@ -131,7 +131,7 @@ func TestConnectionStatementCacheQuery(t *testing.T) {
 	}()
 
 	conn.EnableStatementCache()
-	_, err := conn.Open()
+	_, err := conn.open()
 	a.Nil(err)
 
 	var ok string
@@ -257,7 +257,7 @@ func TestConnectionOpen(t *testing.T) {
 	a := assert.New(t)
 
 	testAlias := NewConnectionFromEnvironment()
-	db, dbErr := testAlias.Open()
+	db, dbErr := testAlias.open()
 	a.Nil(dbErr)
 	a.NotNil(db)
 	defer db.Close()
@@ -456,7 +456,7 @@ func TestConnectionInvalidatesBadCachedStatements(t *testing.T) {
 	defer conn.Close()
 
 	conn.EnableStatementCache()
-	_, err := conn.Open()
+	_, err := conn.open()
 	assert.Nil(err)
 
 	createTableStatement := `CREATE TABLE state_invalidation (id int not null, name varchar(64))`

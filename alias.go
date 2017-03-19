@@ -45,7 +45,7 @@ func SetDefault(conn *Connection) {
 // InitDefault sets the default connection and opens it.
 func InitDefault(conn *Connection) error {
 	SetDefault(conn)
-	_, err := conn.Open()
+	_, err := conn.open()
 	return err
 }
 
