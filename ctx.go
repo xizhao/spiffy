@@ -66,6 +66,11 @@ func (c *Ctx) Tx() *sql.Tx {
 	return c.tx
 }
 
+// Err returns the context's error.
+func (c *Ctx) Err() error {
+	return c.err
+}
+
 // WithLabel instructs the query generator to get or create a cached prepared statement.
 func (c *Ctx) WithLabel(label string) *Ctx {
 	c.statementLabel = label
