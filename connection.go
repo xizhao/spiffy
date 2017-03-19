@@ -308,11 +308,11 @@ func (dbc *Connection) ensureStatementCache() error {
 		dbc.statementCacheLock.Lock()
 		defer dbc.statementCacheLock.Unlock()
 		if dbc.statementCache == nil {
-			dbConn, err := dbc.open()
+			db, err := dbc.open()
 			if err != nil {
 				return exception.Wrap(err)
 			}
-			dbc.statementCache = newStatementCache(dbConn)
+			dbc.statementCache = newStatementCache(db)
 		}
 	}
 	return nil
@@ -335,13 +335,22 @@ func (dbc *Connection) PrepareCached(id, statement string, tx *sql.Tx) (*sql.Stm
 	return dbc.Prepare(statement, tx)
 }
 
+// --------------------------------------------------------------------------------
+// Invocations
+// --------------------------------------------------------------------------------
+
 // Invoke returns a new invocation context.
-func (dbc *Connection) Invoke() *Ctx {
+// You can optionally pass in an existing context and that will
+// supercede the context the connection would have created for you.
+func (dbc *Connection) Invoke(ctxs ...*Ctx) *Ctx {
+	if len(ctxs) > 0 {
+		return ctxs[0]
+	}
 	return &Ctx{conn: dbc, fireEvents: true}
 }
 
 // --------------------------------------------------------------------------------
-// Invocation Stubs
+// Invocation Context Stubs
 // --------------------------------------------------------------------------------
 
 // Exec runs the statement without creating a QueryResult.

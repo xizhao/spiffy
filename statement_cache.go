@@ -8,16 +8,15 @@ import (
 // newStatementCache returns a new `StatementCache`.
 func newStatementCache(dbc *sql.DB) *StatementCache {
 	return &StatementCache{
-		dbc:       dbc,
-		cacheLock: &sync.RWMutex{},
-		cache:     make(map[string]*sql.Stmt),
+		dbc:   dbc,
+		cache: make(map[string]*sql.Stmt),
 	}
 }
 
 // StatementCache is a cache of prepared statements.
 type StatementCache struct {
 	dbc       *sql.DB
-	cacheLock *sync.RWMutex
+	cacheLock sync.Mutex
 	cache     map[string]*sql.Stmt
 }
 
@@ -61,13 +60,13 @@ func (sc *StatementCache) InvalidateStatement(statementID string) {
 }
 
 func (sc *StatementCache) getCachedStatement(statementID string) *sql.Stmt {
-	sc.cacheLock.RLock()
+	sc.cacheLock.Lock()
 
 	if stmt, hasStmt := sc.cache[statementID]; hasStmt {
-		sc.cacheLock.RUnlock()
+		sc.cacheLock.Unlock()
 		return stmt
 	}
-	sc.cacheLock.RUnlock()
+	sc.cacheLock.Unlock()
 	return nil
 }
 
@@ -79,16 +78,18 @@ func (sc *StatementCache) Prepare(id, statementProvider string) (*sql.Stmt, erro
 	}
 
 	sc.cacheLock.Lock()
-	defer sc.cacheLock.Unlock()
 	if stmt, hasStmt := sc.cache[id]; hasStmt {
+		sc.cacheLock.Unlock()
 		return stmt, nil
 	}
 
 	stmt, err := sc.dbc.Prepare(statementProvider)
 	if err != nil {
+		sc.cacheLock.Unlock()
 		return nil, err
 	}
 
 	sc.cache[id] = stmt
+	sc.cacheLock.Unlock()
 	return stmt, nil
 }

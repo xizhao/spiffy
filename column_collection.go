@@ -357,7 +357,7 @@ func (cc ColumnCollection) ColumnNamesCSVFromAlias(tableAlias string) string {
 			names[x] = fmt.Sprintf("%s.%s", tableAlias, c.ColumnName)
 		}
 	}
-	return csv(names)
+	return CSV(names)
 }
 
 // ColumnValues returns the reflected value for all the columns on a given instance.
@@ -406,5 +406,5 @@ func (cc ColumnCollection) String() string {
 
 // ColumnNamesCSV returns a csv of column names.
 func (cc ColumnCollection) ColumnNamesCSV() string {
-	return csv(cc.ColumnNames())
+	return CSV(cc.ColumnNames())
 }
