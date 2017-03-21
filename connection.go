@@ -248,8 +248,8 @@ func (dbc *Connection) openNew() (*sql.DB, error) {
 	return dbConn, nil
 }
 
-// open returns a connection object, either a cached connection object or creating a new one in the process.
-func (dbc *Connection) open() (*sql.DB, error) {
+// Open returns a connection object, either a cached connection object or creating a new one in the process.
+func (dbc *Connection) Open() (*sql.DB, error) {
 	if dbc.Connection == nil {
 		dbc.connectionLock.Lock()
 		defer dbc.connectionLock.Unlock()
@@ -272,7 +272,7 @@ func (dbc *Connection) Begin() (*sql.Tx, error) {
 		return tx, exception.Wrap(txErr)
 	}
 
-	connection, err := dbc.open()
+	connection, err := dbc.Open()
 	if err != nil {
 		return nil, exception.Wrap(err)
 	}
@@ -291,7 +291,7 @@ func (dbc *Connection) Prepare(statement string, tx *sql.Tx) (*sql.Stmt, error) 
 	}
 
 	// open shared connection
-	dbConn, err := dbc.open()
+	dbConn, err := dbc.Open()
 	if err != nil {
 		return nil, exception.Wrap(err)
 	}
@@ -308,7 +308,7 @@ func (dbc *Connection) ensureStatementCache() error {
 		dbc.statementCacheLock.Lock()
 		defer dbc.statementCacheLock.Unlock()
 		if dbc.statementCache == nil {
-			db, err := dbc.open()
+			db, err := dbc.Open()
 			if err != nil {
 				return exception.Wrap(err)
 			}
