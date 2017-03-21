@@ -56,6 +56,7 @@ func (sc *StatementCache) HasStatement(statementID string) bool {
 func (sc *StatementCache) InvalidateStatement(statementID string) {
 	sc.cacheLock.Lock()
 	defer sc.cacheLock.Unlock()
+
 	if _, hasStatement := sc.cache[statementID]; hasStatement {
 		delete(sc.cache, statementID)
 	}
@@ -80,7 +81,6 @@ func (sc *StatementCache) Prepare(id, statementProvider string) (*sql.Stmt, erro
 
 	sc.cacheLock.Lock()
 	defer sc.cacheLock.Unlock()
-
 	if stmt, hasStmt := sc.cache[id]; hasStmt {
 		return stmt, nil
 	}

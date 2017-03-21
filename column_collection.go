@@ -79,6 +79,7 @@ func getCachedColumnCollectionFromInstance(object interface{}) *ColumnCollection
 // The results of this are cached for speed.
 func getCachedColumnCollectionFromType(identifier string, t reflect.Type) *ColumnCollection {
 	metaCacheLock.Lock()
+	defer metaCacheLock.Unlock()
 
 	if metaCache == nil {
 		metaCache = map[string]*ColumnCollection{}
@@ -88,10 +89,8 @@ func getCachedColumnCollectionFromType(identifier string, t reflect.Type) *Colum
 	if !ok {
 		metadata := generateColumnCollectionForType(t)
 		metaCache[identifier] = metadata
-		metaCacheLock.Unlock()
 		return metadata
 	}
-	metaCacheLock.Unlock()
 	return cachedMeta
 }
 
