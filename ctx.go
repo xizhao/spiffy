@@ -929,6 +929,7 @@ func (c *Ctx) closeStatement(err error, stmt *sql.Stmt) error {
 			return exception.Nest(err, closeErr)
 		}
 	}
+	c.statementLabel = ""
 	return err
 }
 
