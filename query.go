@@ -41,7 +41,7 @@ func (q *Query) Close() error {
 			q.stmt = nil
 		}
 	}
-
+	q.ctx.statementLabel = ""
 	return exception.Nest(rowsErr, stmtErr)
 }
 
