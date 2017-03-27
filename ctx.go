@@ -74,6 +74,11 @@ func (c *Ctx) Rollback() error {
 	return c.tx.Rollback()
 }
 
+// Err returns the carried error.
+func (c *Ctx) Err() error {
+	return c.err
+}
+
 // Invoke starts a new invocation.
 func (c *Ctx) Invoke() *Invocation {
 	return &Invocation{ctx: c, err: c.err}
