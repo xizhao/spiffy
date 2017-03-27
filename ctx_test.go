@@ -1,9 +1,8 @@
 package spiffy
 
 import (
-	"testing"
-
 	"fmt"
+	"testing"
 
 	assert "github.com/blendlabs/go-assert"
 )
@@ -45,31 +44,25 @@ func TestCtxInTxWithoutConnection(t *testing.T) {
 	assert.NotNil(withTx.err)
 }
 
-func TestCtxCheck(t *testing.T) {
+func TestCtxInvoke(t *testing.T) {
 	assert := assert.New(t)
 
-	connEmpty := &Ctx{}
-	err := connEmpty.check()
-	assert.NotNil(err)
-	assert.Equal(connectionErrorMessage, fmt.Sprintf("%v", err))
+	inv := NewCtx().WithConn(DB()).Invoke()
+	assert.Nil(inv.check())
+}
 
-	ctxWithErr := &Ctx{conn: DB(), err: fmt.Errorf("this is a test")}
-	err = ctxWithErr.check()
-	assert.NotNil(err)
-	assert.Equal("this is a test", fmt.Sprintf("%v", err))
+func TestCtxInvokeError(t *testing.T) {
+	assert := assert.New(t)
 
-	ctx := &Ctx{conn: DB()}
-	assert.Nil(ctx.check())
+	inv := NewCtx().Invoke()
+	assert.NotNil(inv.check(), "should fail the connection not nil check")
+}
 
-	assert.NotNil(ctxWithErr.Exec("wont run"))
-	assert.NotNil(ctxWithErr.Query("wont run").Out(nil))
-	assert.NotNil(ctxWithErr.Get(nil))
-	assert.NotNil(ctxWithErr.GetAll(nil))
-	assert.NotNil(ctxWithErr.Create(nil))
-	assert.NotNil(ctxWithErr.CreateIfNotExists(nil))
-	assert.NotNil(ctxWithErr.CreateMany(nil))
-	assert.NotNil(ctxWithErr.Update(nil))
-	assert.NotNil(ctxWithErr.Exists(nil))
-	assert.NotNil(ctxWithErr.Delete(nil))
-	assert.NotNil(ctxWithErr.Upsert(nil))
+func TestCtxInvokeCarriesError(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx := NewCtx().WithConn(DB())
+	ctx.err = fmt.Errorf("test error")
+	inv := ctx.Invoke()
+	assert.NotNil(inv.check())
 }
