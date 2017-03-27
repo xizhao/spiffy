@@ -39,6 +39,11 @@ func (i *Invocation) Label() string {
 	return i.statementLabel
 }
 
+// Tx returns the underlying transaction.
+func (i *Invocation) Tx() *sql.Tx {
+	return i.ctx.tx
+}
+
 // Prepare returns a cached or newly prepared statment plan for a given sql statement.
 func (i *Invocation) Prepare(statement string) (*sql.Stmt, error) {
 	if i.err != nil {
