@@ -173,7 +173,7 @@ func readManual(tx *sql.Tx) ([]benchObj, error) {
 }
 
 func readOrm(tx *sql.Tx) ([]benchObj, error) {
-	objs := []benchObj{}
+	var objs []benchObj
 	allErr := Default().GetAllInTx(&objs, tx)
 	return objs, allErr
 }
