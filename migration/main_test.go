@@ -12,7 +12,7 @@ import (
 func TestMain(m *testing.M) {
 	connection := spiffy.NewConnectionFromEnvironment()
 
-	err := spiffy.InitDefault(connection)
+	err := spiffy.OpenDefault(connection)
 	if err != nil {
 		log.Fatal(err)
 	}
