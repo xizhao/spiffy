@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	createCount    = 1 << 9
-	selectCount    = 512
+	createCount    = 1 << 10
+	selectCount    = 1024
 	iterationCount = 128
-	threadCount    = 128
+	threadCount    = 32
 )
 
 const (
@@ -46,7 +46,7 @@ type testObject struct {
 	Variance   float64    `db:"variance"`
 }
 
-func (to *testObject) PopulateInternal(rows *sql.Rows) error {
+func (to *testObject) Populate(rows *sql.Rows) error {
 	return rows.Scan(&to.ID, &to.UUID, &to.CreatedUTC, &to.UpdatedUTC, &to.Active, &to.Name, &to.Variance)
 }
 
@@ -112,7 +112,7 @@ func baselineAccess(db *spiffy.Connection, queryLimit int) ([]testObject, error)
 
 	for res.Next() {
 		to := newTestObject()
-		err = to.PopulateInternal(res)
+		err = to.Populate(res)
 		if err != nil {
 			return results, err
 		}
@@ -209,18 +209,7 @@ func pgxFetchItems(pool *pgx.ConnPool) ([]testObject, error) {
 	return items, nil
 }
 
-func benchPGX(parallelism int, queryLimit int) ([]time.Duration, error) {
-	var pool *pgx.ConnPool
-	var config pgx.ConnPoolConfig
-	config.Host = "localhost"
-	config.Database = os.Getenv("DB_NAME")
-	var err error
-
-	pool, err = pgx.NewConnPool(config)
-	if err != nil {
-		return nil, err
-	}
-
+func benchPGX(pool *pgx.ConnPool, parallelism int, queryLimit int) ([]time.Duration, error) {
 	var durations []time.Duration
 	var waitHandle = sync.WaitGroup{}
 	var errors = make(chan error, parallelism)
@@ -300,8 +289,19 @@ func main() {
 
 	fmt.Println("Finished seeding objects, starting load test.")
 
+	var pool *pgx.ConnPool
+	var config pgx.ConnPoolConfig
+	config.MaxConnections = threadCount
+	config.Host = "localhost"
+	config.Database = os.Getenv("DB_NAME")
+
+	pool, err = pgx.NewConnPool(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	pgxStart := time.Now()
-	pgxTimings, err := benchPGX(threadCount, selectCount)
+	pgxTimings, err := benchPGX(pool, threadCount, selectCount)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -310,10 +310,13 @@ func main() {
 	// do spiffy query
 	uncached := spiffy.NewConnectionFromEnvironment()
 	uncached.DisableStatementCache()
-	_, err = uncached.Open()
+	db, err := uncached.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	db.SetMaxOpenConns(threadCount)
+	db.SetMaxIdleConns(threadCount)
 
 	spiffyStart := time.Now()
 	spiffyTimings, err := benchHarness(uncached, threadCount, selectCount, spiffyAccess)
@@ -325,10 +328,12 @@ func main() {
 	// do spiffy query
 	cached := spiffy.NewConnectionFromEnvironment()
 	cached.EnableStatementCache()
-	_, err = cached.Open()
+	db, err = cached.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
+	db.SetMaxOpenConns(threadCount)
+	db.SetMaxIdleConns(threadCount)
 
 	spiffyCachedStart := time.Now()
 	spiffyCachedTimings, err := benchHarness(cached, threadCount, selectCount, spiffyAccess)
@@ -340,10 +345,12 @@ func main() {
 	// do baseline query
 	baselineStart := time.Now()
 	baseline := spiffy.NewConnectionFromEnvironment()
-	_, err = baseline.Open()
+	db, err = baseline.Open()
 	if err != nil {
 		log.Fatal(err)
 	}
+	db.SetMaxOpenConns(threadCount)
+	db.SetMaxIdleConns(threadCount)
 
 	baselineTimings, err := benchHarness(baseline, threadCount, selectCount, baselineAccess)
 	if err != nil {

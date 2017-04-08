@@ -6,30 +6,30 @@ import (
 	exception "github.com/blendlabs/go-exception"
 )
 
-// NewCtx returns a new ctx.
-func NewCtx() *Ctx {
-	return &Ctx{}
+// NewDB returns a new DB.
+func NewDB() *DB {
+	return &DB{}
 }
 
-// Ctx represents a connection context.
+// DB represents a connection context.
 // It rolls both the underlying connection and an optional tx into one struct.
 // The motivation here is so that if you have datamanager functions they can be
 // used across databases, and don't assume internally which db they talk to.
-type Ctx struct {
+type DB struct {
 	conn *Connection
 	tx   *sql.Tx
 	err  error
 }
 
 // WithConn sets the connection for the context.
-func (c *Ctx) WithConn(conn *Connection) *Ctx {
-	c.conn = conn
-	return c
+func (db *DB) WithConn(conn *Connection) *DB {
+	db.conn = conn
+	return db
 }
 
 // Conn returns the underlying connection for the context.
-func (c *Ctx) Conn() *Connection {
-	return c.conn
+func (db *DB) Conn() *Connection {
+	return db.conn
 }
 
 // InTx isolates a context to a transaction.
@@ -37,49 +37,49 @@ func (c *Ctx) Conn() *Connection {
 // - InTx(...) transaction arguments will be used above everything else
 // - an existing transaction on the context (i.e. if you call `.InTx().InTx()`)
 // - beginning a new transaction with the connection
-func (c *Ctx) InTx(txs ...*sql.Tx) *Ctx {
+func (db *DB) InTx(txs ...*sql.Tx) *DB {
 	if len(txs) > 0 {
-		c.tx = txs[0]
-		return c
+		db.tx = txs[0]
+		return db
 	}
-	if c.tx != nil {
-		return c
+	if db.tx != nil {
+		return db
 	}
-	if c.conn == nil {
-		c.err = exception.Newf(connectionErrorMessage)
-		return c
+	if db.conn == nil {
+		db.err = exception.Newf(connectionErrorMessage)
+		return db
 	}
-	c.tx, c.err = c.conn.Begin()
-	return c
+	db.tx, db.err = db.conn.Begin()
+	return db
 }
 
 // Tx returns the transction for the context.
-func (c *Ctx) Tx() *sql.Tx {
-	return c.tx
+func (db *DB) Tx() *sql.Tx {
+	return db.tx
 }
 
 // Commit calls `Commit()` on the underlying transaction.
-func (c *Ctx) Commit() error {
-	if c.tx == nil {
+func (db *DB) Commit() error {
+	if db.tx == nil {
 		return nil
 	}
-	return c.tx.Commit()
+	return db.tx.Commit()
 }
 
 // Rollback calls `Rollback()` on the underlying transaction.
-func (c *Ctx) Rollback() error {
-	if c.tx == nil {
+func (db *DB) Rollback() error {
+	if db.tx == nil {
 		return nil
 	}
-	return c.tx.Rollback()
+	return db.tx.Rollback()
 }
 
 // Err returns the carried error.
-func (c *Ctx) Err() error {
-	return c.err
+func (db *DB) Err() error {
+	return db.err
 }
 
 // Invoke starts a new invocation.
-func (c *Ctx) Invoke() *Invocation {
-	return &Invocation{ctx: c, err: c.err}
+func (db *DB) Invoke() *Invocation {
+	return &Invocation{db: db, err: db.err}
 }

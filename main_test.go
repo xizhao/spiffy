@@ -17,7 +17,7 @@ import (
 
 // TestMain is the testing entrypoint.
 func TestMain(m *testing.M) {
-	err := InitDefault(NewConnectionFromEnvironment())
+	err := OpenDefault(NewConnectionFromEnvironment())
 	if err != nil {
 		log.Fatal(err)
 	}
