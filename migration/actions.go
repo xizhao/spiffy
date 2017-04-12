@@ -77,12 +77,12 @@ func actionImpl1(o *Operation, verb, noun string, guard guard1, guardArgName str
 			return nil
 		}
 		if o.logger != nil {
-			return o.logger.Applyf(o, "`%s`", subject)
+			return o.logger.Applyf(o, "%s `%s`", verb, subject)
 		}
 		return nil
 	}
 	if o.logger != nil {
-		return o.logger.Skipf(o, "`%s`", subject)
+		return o.logger.Skipf(o, "%s `%s`", verb, subject)
 	}
 	return nil
 }
@@ -113,12 +113,12 @@ func actionImpl2(o *Operation, verb, noun string, guard guard2, guardArgNames []
 			return err
 		}
 		if o.logger != nil {
-			return o.logger.Applyf(o, "`%s` on `%s`", subject2, subject1)
+			return o.logger.Applyf(o, "%s `%s` on `%s`", verb, subject2, subject1)
 		}
 		return nil
 	}
 	if o.logger != nil {
-		return o.logger.Skipf(o, "`%s` on `%s`", subject2, subject1)
+		return o.logger.Skipf(o, "%s `%s` on `%s`", verb, subject2, subject1)
 	}
 	return nil
 }
