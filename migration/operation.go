@@ -7,12 +7,12 @@ import (
 )
 
 // Step is an alias to NewOperation.
-func Step(action Action, body Statement, args ...string) *Operation {
+func Step(action Action, body Invocable, args ...string) *Operation {
 	return NewOperation(action, body, args...)
 }
 
 // NewOperation creates a new invocable.
-func NewOperation(action Action, body Statement, args ...string) *Operation {
+func NewOperation(action Action, body Invocable, args ...string) *Operation {
 	return &Operation{
 		action: action,
 		body:   body,
@@ -26,7 +26,7 @@ type Operation struct {
 	parent *Runner
 	logger *Logger
 	action Action
-	body   Statement
+	body   Invocable
 	args   []string
 }
 

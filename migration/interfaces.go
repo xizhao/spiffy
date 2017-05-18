@@ -14,6 +14,9 @@ type Invocable interface {
 	Invoke(c *spiffy.Connection, tx *sql.Tx) error
 }
 
+// Invocation is a function that can be run during a step.
+type Invocation func(c *spiffy.Connection, tx *sql.Tx) error
+
 // Migration is an Invocable that can tested before running.
 type Migration interface {
 	Label() string

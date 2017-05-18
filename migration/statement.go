@@ -30,3 +30,18 @@ func (s Statement) Invoke(c *spiffy.Connection, tx *sql.Tx) (err error) {
 	}
 	return
 }
+
+// Invoke returns an invocable that can have a body.
+func Invoke(action Invocation) *DynamicInvocation {
+	return &DynamicInvocation{Action: action}
+}
+
+// DynamicInvocation wraps a user supplied invocation body.
+type DynamicInvocation struct {
+	Action Invocation
+}
+
+// Invoke applies the invocation.
+func (di *DynamicInvocation) Invoke(c *spiffy.Connection, tx *sql.Tx) error {
+	return di.Action(c, tx)
+}
