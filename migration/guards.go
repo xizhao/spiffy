@@ -72,9 +72,9 @@ func IfNotExists(statement string) GuardAction {
 }
 
 // ColumnNotExists creates a table on the given connection if it does not exist.
-func ColumnNotExists(tableName, columName string) GuardAction {
+func ColumnNotExists(tableName, columnName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
-		return guardImpl2(o, verbCreate, nounColumn, columnExists, tableName, tableName, c, tx)
+		return guardImpl2(o, verbCreate, nounColumn, columnExists, tableName, columnName, c, tx)
 	}
 }
 
