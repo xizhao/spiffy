@@ -23,8 +23,8 @@ type Migration interface {
 	Apply(c *spiffy.Connection, optionalTx ...*sql.Tx) error
 }
 
-// Action is a step in a migration.
-type Action func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error
+// GuardAction is a control for migration steps.
+type GuardAction func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error
 
 // Invocable is a thing that can be invoked.
 type Invocable interface {

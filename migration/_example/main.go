@@ -18,38 +18,35 @@ func main() {
 	m := migration.New(
 		"create & fill `test_vocab`",
 		migration.Step(
-			migration.AlterTable,
-			migration.Body(
+			migration.AlterTable("test_vocab"),
+			migration.Statements(
 				"DROP TABLE test_vocab",
 			),
-			"test_vocab",
 		),
 		migration.Step(
-			migration.CreateTable,
-			migration.Body(
+			migration.CreateTable("test_vocab"),
+			migration.Statements(
 				"CREATE TABLE test_vocab (id serial not null, word varchar(32) not null);",
 				"ALTER TABLE test_vocab ADD CONSTRAINT pk_test_vocab_id PRIMARY KEY(id);",
 			),
-			"test_vocab",
 		),
 		migration.New(
 			"fill `test_vocab`",
 			migration.ReadDataFile("data.sql"),
 		),
 		migration.Step(
-			migration.Custom("test custom step", func(c *spiffy.Connection, tx *sql.Tx) (bool, error) {
+			migration.Guard("test custom step", func(c *spiffy.Connection, tx *sql.Tx) (bool, error) {
 				return c.QueryInTx("select 1 from test_vocab where word = $1", tx, "foo").None()
 			}),
-			migration.Invoke(func(c *spiffy.Connection, tx *sql.Tx) error {
+			migration.Body(func(c *spiffy.Connection, tx *sql.Tx) error {
 				return c.ExecInTx("insert into test_vocab (word) values ($1)", tx, "foo")
 			}),
 		),
 		migration.Step(
-			migration.AlterTable,
-			migration.Body(
+			migration.AlterTable("test_vocab"),
+			migration.Statements(
 				"DROP TABLE test_vocab",
 			),
-			"test_vocab",
 		),
 	)
 	m.SetLogger(migration.NewLogger())

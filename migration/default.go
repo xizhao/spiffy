@@ -1,25 +1,18 @@
 package migration
 
-import "sync"
-
 var (
-	defaultSuite     = &Suite{}
-	defaultSuiteLock sync.Mutex
+	defaultSuite = &Suite{}
 )
 
 // Register adds a process to the default suite.
 func Register(m ...Migration) error {
-	defaultSuiteLock.Lock()
-	defer defaultSuiteLock.Unlock()
 	defaultSuite.addMigrations(m...)
 	return nil
 }
 
-// Run passes the default suite to the handler method. It acquires a read lock wrapping the action.
-func Run(handler func(Migration) error) error {
-	defaultSuiteLock.Lock()
-	defer defaultSuiteLock.Unlock()
-	return handler(defaultSuite)
+// SetDefault sets the default.
+func SetDefault(suite *Suite) {
+	defaultSuite = suite
 }
 
 // Default returns the default migration suite.

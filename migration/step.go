@@ -7,11 +7,10 @@ import (
 )
 
 // Step is an alias to NewOperation.
-func Step(action Action, body Invocable, args ...string) *Operation {
+func Step(guard GuardAction, body Invocable) *Operation {
 	return &Operation{
-		action: action,
-		body:   body,
-		args:   args,
+		guard: guard,
+		body:  body,
 	}
 }
 
@@ -20,9 +19,8 @@ type Operation struct {
 	label  string
 	parent Migration
 	logger *Logger
-	action Action
+	guard  GuardAction
 	body   Invocable
-	args   []string
 }
 
 // Label returns the operation label.
@@ -69,6 +67,6 @@ func (o *Operation) Test(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error
 // Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
 func (o *Operation) Apply(c *spiffy.Connection, txs ...*sql.Tx) (err error) {
 	tx := spiffy.OptionalTx(txs...)
-	err = o.action(o, c, tx)
+	err = o.guard(o, c, tx)
 	return
 }

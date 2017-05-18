@@ -6,22 +6,17 @@ import (
 	"github.com/blendlabs/spiffy"
 )
 
-// Body is an alias to NewStatement.
-func Body(statements ...string) BodyStatement {
-	return BodyStatement(statements)
+// Body returns a dynamic body invocable.
+func Body(action InvocableAction) Invocable {
+	return &body{Action: action}
 }
 
-// BodyStatement is an atomic unit of work. It can be multiple individual sql statements.
-// This is what is run by the operation gates (if index exists / if column exists etc.)
-type BodyStatement []string
+// body wraps a user supplied invocation body.
+type body struct {
+	Action InvocableAction
+}
 
-// Invoke executes the statement block
-func (bs BodyStatement) Invoke(c *spiffy.Connection, tx *sql.Tx) (err error) {
-	for _, step := range bs {
-		err = c.ExecInTx(step, tx)
-		if err != nil {
-			return
-		}
-	}
-	return
+// Invoke applies the invocation.
+func (b *body) Invoke(c *spiffy.Connection, tx *sql.Tx) error {
+	return b.Action(c, tx)
 }
