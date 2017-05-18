@@ -23,109 +23,31 @@ const (
 	nounIfNotExists = "if not exists"
 )
 
-// actionName joins a noun and a verb
-func actionName(verb, noun string) string {
-	return fmt.Sprintf("%v %v", verb, noun)
-}
-
-// guard1 is for guards that require (1) arg such as `create table` and create constraint`
-type guard1 func(c *spiffy.Connection, tx *sql.Tx, arg string) (bool, error)
-
-// guard2 is for guards that require (2) args such as `create column` and `create index`
-type guard2 func(c *spiffy.Connection, tx *sql.Tx, arg1, arg2 string) (bool, error)
-
-// actionImpl is an unguarded action, it doesn't care if something exists or doesn't
-// it is a requirement of the operation to guard itself.
-func actionImpl(o *Operation, verb, noun string, c *spiffy.Connection, tx *sql.Tx) error {
-	err := o.body.Invoke(c, tx)
-
-	if err != nil {
-		if o.logger != nil {
-			return o.logger.Errorf(o, err)
-		}
-		return nil
-	}
-	if o.logger != nil {
-		return o.logger.Applyf(o, "done")
-	}
-	return nil
-}
-
-func actionImpl1(o *Operation, verb, noun string, guard guard1, guardArgName string, c *spiffy.Connection, tx *sql.Tx) error {
-	o.SetLabel(actionName(verb, noun))
-	if len(o.args) < 1 {
-		err := fmt.Errorf("`%s` requires (1) argument => %s", o.label, guardArgName)
-		if o.logger != nil {
-			return o.logger.Errorf(o, err)
-		}
-		return err
-	}
-	subject := o.args[0]
-	if exists, err := guard(c, tx, subject); err != nil {
-		if o.logger != nil {
-			return o.logger.Errorf(o, err)
-		}
-		return nil
-	} else if (verb == verbCreate && !exists) ||
-		(verb == verbAlter && exists) ||
-		(verb == verbRun && exists) {
-		err = o.body.Invoke(c, tx)
-		if err != nil {
-			if o.logger != nil {
-				return o.logger.Errorf(o, err)
-			}
-			return nil
-		}
-		if o.logger != nil {
-			return o.logger.Applyf(o, "%s `%s`", verb, subject)
-		}
-		return nil
-	}
-	if o.logger != nil {
-		return o.logger.Skipf(o, "%s `%s`", verb, subject)
-	}
-	return nil
-}
-
-func actionImpl2(o *Operation, verb, noun string, guard guard2, guardArgNames []string, c *spiffy.Connection, tx *sql.Tx) error {
-	o.SetLabel(actionName(verb, noun))
-	if len(o.args) < 2 {
-		err := fmt.Errorf("`%s` requires (2) arguments => %s", o.label, strings.Join(guardArgNames, ", "))
-		if o.logger != nil {
-			return o.logger.Errorf(o, err)
-		}
-		return err
-	}
-	subject1 := o.args[0]
-	subject2 := o.args[1]
-
-	if exists, err := guard(c, tx, subject1, subject2); err != nil {
-		if o.logger != nil {
-			return o.logger.Errorf(o, err)
-		}
-		return err
-	} else if (verb == verbCreate && !exists) || (verb == verbAlter && exists) || (verb == verbRun && exists) {
-		err = o.body.Invoke(c, tx)
-		if err != nil {
-			if o.logger != nil {
-				return o.logger.Errorf(o, err)
-			}
-			return err
-		}
-		if o.logger != nil {
-			return o.logger.Applyf(o, "%s `%s` on `%s`", verb, subject2, subject1)
-		}
-		return nil
-	}
-	if o.logger != nil {
-		return o.logger.Skipf(o, "%s `%s` on `%s`", verb, subject2, subject1)
-	}
-	return nil
-}
-
 // --------------------------------------------------------------------------------
 // Actions
 // --------------------------------------------------------------------------------
+
+// Custom is a custom action/guard.
+func Custom(label string, guard func(c *spiffy.Connection, tx *sql.Tx) (bool, error)) Action {
+	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
+		o.SetLabel(label)
+
+		proceed, err := guard(c, tx)
+		if err != nil {
+			return o.logger.Error(o, err)
+		}
+
+		if proceed {
+			err = o.body.Invoke(c, tx)
+			if err != nil {
+				return o.logger.Error(o, err)
+			}
+			return o.logger.Applyf(o, label)
+		}
+
+		return o.logger.Skipf(o, label)
+	}
+}
 
 // AlwaysRun always runs a step.
 func AlwaysRun(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
@@ -190,6 +112,78 @@ func AlterIndex(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 // AlterRole alters an existing role in the db
 func AlterRole(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 	return actionImpl1(o, verbAlter, nounRole, roleExists, "role_name", c, tx)
+}
+
+// actionName joins a noun and a verb
+func actionName(verb, noun string) string {
+	return fmt.Sprintf("%v %v", verb, noun)
+}
+
+// guard1 is for guards that require (1) arg such as `create table` and create constraint`
+type guard1 func(c *spiffy.Connection, tx *sql.Tx, arg string) (bool, error)
+
+// guard2 is for guards that require (2) args such as `create column` and `create index`
+type guard2 func(c *spiffy.Connection, tx *sql.Tx, arg1, arg2 string) (bool, error)
+
+// actionImpl is an unguarded action, it doesn't care if something exists or doesn't
+// it is a requirement of the operation to guard itself.
+func actionImpl(o *Operation, verb, noun string, c *spiffy.Connection, tx *sql.Tx) error {
+	err := o.body.Invoke(c, tx)
+
+	if err != nil {
+		if o.logger != nil {
+			return o.logger.Error(o, err)
+		}
+		return nil
+	}
+	if o.logger != nil {
+		return o.logger.Applyf(o, "done")
+	}
+	return nil
+}
+
+func actionImpl1(o *Operation, verb, noun string, guard guard1, guardArgName string, c *spiffy.Connection, tx *sql.Tx) error {
+	o.SetLabel(actionName(verb, noun))
+	if len(o.args) < 1 {
+		err := fmt.Errorf("`%s` requires (1) argument => %s", o.label, guardArgName)
+		return o.logger.Error(o, err)
+	}
+	subject := o.args[0]
+	if exists, err := guard(c, tx, subject); err != nil {
+		return o.logger.Error(o, err)
+	} else if (verb == verbCreate && !exists) ||
+		(verb == verbAlter && exists) ||
+		(verb == verbRun && exists) {
+		err = o.body.Invoke(c, tx)
+		if err != nil {
+			return o.logger.Error(o, err)
+		}
+		return o.logger.Applyf(o, "%s `%s`", verb, subject)
+	}
+	return o.logger.Skipf(o, "%s `%s`", verb, subject)
+}
+
+func actionImpl2(o *Operation, verb, noun string, guard guard2, guardArgNames []string, c *spiffy.Connection, tx *sql.Tx) error {
+	o.SetLabel(actionName(verb, noun))
+	if len(o.args) < 2 {
+		err := fmt.Errorf("`%s` requires (2) arguments => %s", o.label, strings.Join(guardArgNames, ", "))
+		return o.logger.Error(o, err)
+	}
+	subject1 := o.args[0]
+	subject2 := o.args[1]
+
+	if exists, err := guard(c, tx, subject1, subject2); err != nil {
+		return o.logger.Error(o, err)
+	} else if (verb == verbCreate && !exists) || (verb == verbAlter && exists) || (verb == verbRun && exists) {
+		err = o.body.Invoke(c, tx)
+		if err != nil {
+			return o.logger.Error(o, err)
+		}
+
+		return o.logger.Applyf(o, "%s `%s` on `%s`", verb, subject2, subject1)
+	}
+
+	return o.logger.Skipf(o, "%s `%s` on `%s`", verb, subject2, subject1)
 }
 
 // --------------------------------------------------------------------------------

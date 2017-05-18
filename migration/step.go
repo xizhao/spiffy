@@ -8,11 +8,6 @@ import (
 
 // Step is an alias to NewOperation.
 func Step(action Action, body Invocable, args ...string) *Operation {
-	return NewOperation(action, body, args...)
-}
-
-// NewOperation creates a new invocable.
-func NewOperation(action Action, body Invocable, args ...string) *Operation {
 	return &Operation{
 		action: action,
 		body:   body,
@@ -23,7 +18,7 @@ func NewOperation(action Action, body Invocable, args ...string) *Operation {
 // Operation is a closure for a Operation
 type Operation struct {
 	label  string
-	parent *Runner
+	parent Migration
 	logger *Logger
 	action Action
 	body   Invocable
@@ -41,12 +36,12 @@ func (o *Operation) SetLabel(label string) {
 }
 
 // Parent returns the parent.
-func (o *Operation) Parent() *Runner {
+func (o *Operation) Parent() Migration {
 	return o.parent
 }
 
 // SetParent sets the operation parent.
-func (o *Operation) SetParent(parent *Runner) {
+func (o *Operation) SetParent(parent Migration) {
 	o.parent = parent
 }
 
@@ -60,7 +55,7 @@ func (o *Operation) SetLogger(logger *Logger) {
 	o.logger = logger
 }
 
-// IsTransactionIsolated returns if this migration requires it's own migration
+// IsTransactionIsolated returns if this migration requires its own transaction.
 func (o *Operation) IsTransactionIsolated() bool {
 	return false
 }
@@ -72,8 +67,8 @@ func (o *Operation) Test(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error
 }
 
 // Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
-func (o *Operation) Apply(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
-	tx := spiffy.OptionalTx(optionalTx...)
+func (o *Operation) Apply(c *spiffy.Connection, txs ...*sql.Tx) (err error) {
+	tx := spiffy.OptionalTx(txs...)
 	err = o.action(o, c, tx)
 	return
 }

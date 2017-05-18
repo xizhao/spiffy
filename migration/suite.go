@@ -9,94 +9,94 @@ import (
 )
 
 // New creates a new migration series.
-func New(label string, migrations ...Migration) *Runner {
-	r := &Runner{
+func New(label string, migrations ...Migration) *Suite {
+	r := &Suite{
 		label: label,
 	}
 	r.addMigrations(migrations...)
 	return r
 }
 
-// Runner runs the migrations
-type Runner struct {
+// Suite runs the migrations
+type Suite struct {
 	label              string
-	parent             *Runner
+	parent             Migration
 	shouldAbortOnError bool
 	stack              []string
 	logger             *Logger
 	migrations         []Migration
 }
 
-func (r *Runner) addMigrations(migrations ...Migration) {
+func (s *Suite) addMigrations(migrations ...Migration) {
 	for _, m := range migrations {
-		m.SetParent(r)
-		r.migrations = append(r.migrations, m)
+		m.SetParent(s)
+		s.migrations = append(s.migrations, m)
 	}
 }
 
 // Label returns a label for the runner.
-func (r *Runner) Label() string {
-	return r.label
+func (s *Suite) Label() string {
+	return s.label
 }
 
 // SetLabel sets the migration label.
-func (r *Runner) SetLabel(value string) {
-	r.label = value
+func (s *Suite) SetLabel(value string) {
+	s.label = value
 }
 
 // IsRoot denotes if the runner is the root runner (or not).
-func (r *Runner) IsRoot() bool {
-	return r.parent == nil
+func (s *Suite) IsRoot() bool {
+	return s.parent == nil
 }
 
 // Parent returns the runner's parent.
-func (r *Runner) Parent() *Runner {
-	return r.parent
+func (s *Suite) Parent() Migration {
+	return s.parent
 }
 
 // SetParent sets the runner's parent.
-func (r *Runner) SetParent(parent *Runner) {
-	r.parent = parent
+func (s *Suite) SetParent(parent Migration) {
+	s.parent = parent
 }
 
 // ShouldAbortOnError indicates that the runner will abort if it sees an error from a step.
-func (r *Runner) ShouldAbortOnError() bool {
-	return r.shouldAbortOnError
+func (s *Suite) ShouldAbortOnError() bool {
+	return s.shouldAbortOnError
 }
 
 // SetShouldAbortOnError sets if the runner should abort on error.
-func (r *Runner) SetShouldAbortOnError(value bool) {
-	r.shouldAbortOnError = value
+func (s *Suite) SetShouldAbortOnError(value bool) {
+	s.shouldAbortOnError = value
 }
 
 // Logger returns the logger.
-func (r *Runner) Logger() *Logger {
-	return r.logger
+func (s *Suite) Logger() *Logger {
+	return s.logger
 }
 
 // SetLogger sets the logger the Runner should use.
-func (r *Runner) SetLogger(logger *Logger) {
-	r.logger = logger
+func (s *Suite) SetLogger(logger *Logger) {
+	s.logger = logger
 }
 
 // IsTransactionIsolated returns if the migration is transaction isolated.
-func (r *Runner) IsTransactionIsolated() bool {
+func (s *Suite) IsTransactionIsolated() bool {
 	return true
 }
 
 // Test wraps the action in a transaction and rolls the transaction back upon completion.
-func (r *Runner) Test(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
-	if r.logger != nil {
-		r.logger.Phase = "test"
+func (s *Suite) Test(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
+	if s.logger != nil {
+		s.logger.Phase = "test"
 	}
 
-	for _, m := range r.migrations {
-		if r.logger != nil {
-			m.SetLogger(r.logger)
+	for _, m := range s.migrations {
+		if s.logger != nil {
+			m.SetLogger(s.logger)
 		}
 
-		err = r.invokeMigration(true, m, c, optionalTx...)
-		if err != nil && r.shouldAbortOnError {
+		err = s.invokeMigration(true, m, c, optionalTx...)
+		if err != nil && s.shouldAbortOnError {
 			break
 		}
 	}
@@ -104,29 +104,29 @@ func (r *Runner) Test(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
 }
 
 // Apply wraps the action in a transaction and commits it if there were no errors, rolling back if there were.
-func (r *Runner) Apply(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
-	if r.logger != nil {
-		r.logger.Phase = "apply"
+func (s *Suite) Apply(c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
+	if s.logger != nil {
+		s.logger.Phase = "apply"
 	}
 
-	for _, m := range r.migrations {
-		if r.logger != nil {
-			m.SetLogger(r.logger)
+	for _, m := range s.migrations {
+		if s.logger != nil {
+			m.SetLogger(s.logger)
 		}
 
-		err = r.invokeMigration(false, m, c, optionalTx...)
-		if err != nil && r.shouldAbortOnError {
+		err = s.invokeMigration(false, m, c, optionalTx...)
+		if err != nil && s.shouldAbortOnError {
 			break
 		}
 	}
 
-	if r.IsRoot() && r.logger != nil {
-		r.logger.WriteStats()
+	if s.IsRoot() && s.logger != nil {
+		s.logger.WriteStats()
 	}
 	return
 }
 
-func (r *Runner) invokeMigration(isTest bool, m Migration, c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
+func (s *Suite) invokeMigration(isTest bool, m Migration, c *spiffy.Connection, optionalTx ...*sql.Tx) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%v", err)
