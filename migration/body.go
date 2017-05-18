@@ -8,15 +8,15 @@ import (
 
 // Body returns a dynamic body invocable.
 func Body(action InvocableAction) Invocable {
-	return &body{Action: action}
+	return &body{action: action}
 }
 
 // body wraps a user supplied invocation body.
 type body struct {
-	Action InvocableAction
+	action InvocableAction
 }
 
 // Invoke applies the invocation.
 func (b *body) Invoke(c *spiffy.Connection, tx *sql.Tx) error {
-	return b.Action(c, tx)
+	return b.action(c, tx)
 }
