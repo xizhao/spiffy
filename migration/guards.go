@@ -71,71 +71,71 @@ func IfNotExists(statement string) GuardAction {
 	}
 }
 
-// CreateColumn creates a table on the given connection if it does not exist.
-func CreateColumn(tableName, columName string) GuardAction {
+// ColumnNotExists creates a table on the given connection if it does not exist.
+func ColumnNotExists(tableName, columName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl2(o, verbCreate, nounColumn, columnExists, tableName, tableName, c, tx)
 	}
 }
 
-// CreateConstraint creates a table on the given connection if it does not exist.
-func CreateConstraint(constraintName string) GuardAction {
+// ContraintNotExists creates a table on the given connection if it does not exist.
+func ContraintNotExists(constraintName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl1(o, verbCreate, nounConstraint, constraintExists, constraintName, c, tx)
 	}
 }
 
-// CreateTable creates a table on the given connection if it does not exist.
-func CreateTable(tableName string) GuardAction {
+// TableNotExists creates a table on the given connection if it does not exist.
+func TableNotExists(tableName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl1(o, verbCreate, nounTable, tableExists, tableName, c, tx)
 	}
 }
 
-// CreateIndex creates a index on the given connection if it does not exist.
-func CreateIndex(tableName, indexName string) GuardAction {
+// IndexNotExists creates a index on the given connection if it does not exist.
+func IndexNotExists(tableName, indexName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl2(o, verbCreate, nounIndex, indexExists, tableName, indexName, c, tx)
 	}
 }
 
-// CreateRole creates a new role if it doesn't exist.
-func CreateRole(roleName string) GuardAction {
+// RoleNotExists creates a new role if it doesn't exist.
+func RoleNotExists(roleName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl1(o, verbCreate, nounRole, roleExists, roleName, c, tx)
 	}
 }
 
-// AlterColumn alters an existing column, erroring if it doesn't exist
-func AlterColumn(tableName, columnName string) GuardAction {
+// ColumnExists alters an existing column, erroring if it doesn't exist
+func ColumnExists(tableName, columnName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl2(o, verbAlter, nounTable, columnExists, tableName, columnName, c, tx)
 	}
 }
 
-// AlterConstraint alters an existing constraint, erroring if it doesn't exist
-func AlterConstraint(constraintName string) GuardAction {
+// ConstraintExists alters an existing constraint, erroring if it doesn't exist
+func ConstraintExists(constraintName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl1(o, verbAlter, nounConstraint, constraintExists, constraintName, c, tx)
 	}
 }
 
-// AlterTable alters an existing table, erroring if it doesn't exist
-func AlterTable(tableName string) GuardAction {
+// TableExists alters an existing table, erroring if it doesn't exist
+func TableExists(tableName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl1(o, verbAlter, nounTable, tableExists, tableName, c, tx)
 	}
 }
 
-// AlterIndex alters an existing index, erroring if it doesn't exist
-func AlterIndex(tableName, indexName string) GuardAction {
+// IndexExists alters an existing index, erroring if it doesn't exist
+func IndexExists(tableName, indexName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl2(o, verbAlter, nounIndex, indexExists, tableName, indexName, c, tx)
 	}
 }
 
-// AlterRole alters an existing role in the db
-func AlterRole(roleName string) GuardAction {
+// RoleExists alters an existing role in the db
+func RoleExists(roleName string) GuardAction {
 	return func(o *Operation, c *spiffy.Connection, tx *sql.Tx) error {
 		return guardImpl1(o, verbAlter, nounRole, roleExists, roleName, c, tx)
 	}

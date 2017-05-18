@@ -18,13 +18,13 @@ func main() {
 	m := migration.New(
 		"create & fill `test_vocab`",
 		migration.Step(
-			migration.AlterTable("test_vocab"),
+			migration.TableExists("test_vocab"),
 			migration.Statements(
 				"DROP TABLE test_vocab",
 			),
 		),
 		migration.Step(
-			migration.CreateTable("test_vocab"),
+			migration.TableNotExists("test_vocab"),
 			migration.Statements(
 				"CREATE TABLE test_vocab (id serial not null, word varchar(32) not null);",
 				"ALTER TABLE test_vocab ADD CONSTRAINT pk_test_vocab_id PRIMARY KEY(id);",
@@ -43,7 +43,7 @@ func main() {
 			}),
 		),
 		migration.Step(
-			migration.AlterTable("test_vocab"),
+			migration.TableExists("test_vocab"),
 			migration.Statements(
 				"DROP TABLE test_vocab",
 			),
